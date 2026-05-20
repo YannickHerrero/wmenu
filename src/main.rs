@@ -3,6 +3,7 @@ use anyhow::Result;
 mod config;
 mod index;
 mod logging;
+mod matcher;
 mod mru;
 
 fn main() -> Result<()> {
