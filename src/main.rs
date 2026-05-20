@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 mod config;
+mod index;
 mod logging;
 
 fn main() -> Result<()> {
