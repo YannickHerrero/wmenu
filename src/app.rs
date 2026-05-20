@@ -35,6 +35,7 @@ pub struct App {
     pub query: String,
     pub selected: usize,
     pub focus_request: bool,
+    pub was_focused: bool,
 }
 
 impl App {
@@ -74,6 +75,7 @@ impl App {
             query: String::new(),
             selected: 0,
             focus_request: false,
+            was_focused: false,
         }
     }
 
@@ -92,6 +94,7 @@ impl App {
     fn hide(&mut self, ctx: &egui::Context) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.visible = false;
+        self.was_focused = false;
     }
 
     fn poll_tray(&mut self, ctx: &egui::Context) {
@@ -129,6 +132,16 @@ impl eframe::App for App {
         self.poll_tray(ui.ctx());
         self.poll_hotkey(ui.ctx());
 
+        if self.visible {
+            let focused = ui.ctx().input(|i| i.focused);
+            if focused {
+                self.was_focused = true;
+            } else if self.was_focused {
+                self.hide(ui.ctx());
+                return;
+            }
+        }
+
         match self.view {
             View::Launcher => {
                 let snapshot = self.index.load();
@@ -162,7 +175,7 @@ impl eframe::App for App {
                         self.selected = 0;
                     }
                     launcher::Action::Hide => {
-                        // hide wiring lands in step 15
+                        self.hide(ui.ctx());
                     }
                 }
             }
