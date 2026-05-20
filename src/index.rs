@@ -1,6 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::thread;
+use std::time::Instant;
 
+use arc_swap::ArcSwap;
 use lnk::ShellLink;
 use tracing::{debug, warn};
 
@@ -8,6 +12,28 @@ use tracing::{debug, warn};
 pub struct AppEntry {
     pub name: String,
     pub path: PathBuf,
+}
+
+#[derive(Debug, Default)]
+pub struct Index {
+    pub entries: Vec<AppEntry>,
+    pub scanned_at: Option<Instant>,
+}
+
+pub type SharedIndex = Arc<ArcSwap<Index>>;
+
+pub fn new_shared() -> SharedIndex {
+    Arc::new(ArcSwap::from_pointee(Index::default()))
+}
+
+pub fn spawn_scan(shared: SharedIndex, extra_dirs: Vec<PathBuf>) {
+    thread::spawn(move || {
+        let entries = scan(&extra_dirs);
+        shared.store(Arc::new(Index {
+            entries,
+            scanned_at: Some(Instant::now()),
+        }));
+    });
 }
 
 pub fn start_menu_dirs() -> Vec<PathBuf> {
