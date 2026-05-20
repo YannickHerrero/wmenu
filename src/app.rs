@@ -2,6 +2,7 @@ use eframe::egui;
 
 use crate::config::Config;
 use crate::index::SharedIndex;
+use crate::launch;
 use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::ui::launcher;
@@ -56,8 +57,22 @@ impl eframe::App for App {
                 self.focus_request = false;
                 match action {
                     launcher::Action::None => {}
-                    launcher::Action::Launch(_idx) => {
-                        // launch wiring lands in step 11
+                    launcher::Action::Launch(idx) => {
+                        let path = snapshot.entries[idx].path.clone();
+                        ui.ctx()
+                            .send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        self.visible = false;
+                        match launch::launch(&path) {
+                            Ok(()) => {
+                                self.mru.record_launch(&path);
+                                if let Err(e) = self.mru.save() {
+                                    tracing::warn!("save mru: {e}");
+                                }
+                            }
+                            Err(e) => tracing::warn!("launch {}: {e}", path.display()),
+                        }
+                        self.query.clear();
+                        self.selected = 0;
                     }
                     launcher::Action::Hide => {
                         // hide wiring lands in step 15

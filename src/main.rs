@@ -6,6 +6,7 @@ use eframe::egui;
 mod app;
 mod config;
 mod index;
+mod launch;
 mod logging;
 mod matcher;
 mod mru;
