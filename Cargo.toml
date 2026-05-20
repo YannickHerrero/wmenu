@@ -8,6 +8,7 @@ anyhow = "1.0.102"
 arc-swap = "1.9.1"
 directories = "6.0.0"
 eframe = { version = "0.34.2", default-features = false, features = ["glow", "default_fonts", "accesskit", "wayland", "x11"] }
+global-hotkey = "0.8.0"
 lnk = "0.6.4"
 nucleo-matcher = "0.3.1"
 serde = { version = "1.0.228", features = ["derive"] }

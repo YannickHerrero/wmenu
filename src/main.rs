@@ -5,6 +5,7 @@ use eframe::egui;
 
 mod app;
 mod config;
+mod hotkey;
 mod index;
 mod launch;
 mod logging;
@@ -22,6 +23,10 @@ fn main() -> Result<()> {
     index::spawn_scan(shared_index.clone(), cfg.extra_dirs.clone());
     let mru_store = mru::Mru::load()?;
     let tray_handle = tray::build()?;
+    let mut hotkey_mgr = hotkey::Manager::new()?;
+    if let Err(e) = hotkey_mgr.set(&cfg.hotkey.0) {
+        tracing::warn!("default hotkey {} failed: {e}", cfg.hotkey.0);
+    }
 
     let viewport = egui::ViewportBuilder::default()
         .with_title("wmenu")
@@ -44,6 +49,7 @@ fn main() -> Result<()> {
                 shared_index,
                 mru_store,
                 tray_handle,
+                hotkey_mgr,
             )))
         }),
     )

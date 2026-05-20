@@ -3,6 +3,7 @@ use eframe::egui;
 use tray_icon::menu::MenuEvent;
 
 use crate::config::Config;
+use crate::hotkey::Manager as HotkeyMgr;
 use crate::index::SharedIndex;
 use crate::launch;
 use crate::matcher::Engine;
@@ -21,6 +22,7 @@ pub struct App {
     pub mru: Mru,
     pub matcher: Engine,
     pub tray: Tray,
+    pub hotkey: HotkeyMgr,
     pub view: View,
     pub visible: bool,
     pub query: String,
@@ -29,13 +31,14 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(cfg: Config, index: SharedIndex, mru: Mru, tray: Tray) -> Self {
+    pub fn new(cfg: Config, index: SharedIndex, mru: Mru, tray: Tray, hotkey: HotkeyMgr) -> Self {
         Self {
             cfg,
             index,
             mru,
             matcher: Engine::new(),
             tray,
+            hotkey,
             view: View::Launcher,
             visible: false,
             query: String::new(),
