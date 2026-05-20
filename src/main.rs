@@ -9,6 +9,7 @@ mod index;
 mod logging;
 mod matcher;
 mod mru;
+mod ui;
 
 fn main() -> Result<()> {
     let _log_guard = logging::init()?;
