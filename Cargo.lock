@@ -1013,6 +1013,7 @@ dependencies = [
  "directories",
  "lnk",
  "serde",
+ "serde_json",
  "toml",
  "tracing",
  "tracing-appender",
