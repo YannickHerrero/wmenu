@@ -10,6 +10,7 @@ mod launch;
 mod logging;
 mod matcher;
 mod mru;
+mod tray;
 mod ui;
 
 fn main() -> Result<()> {
@@ -20,6 +21,7 @@ fn main() -> Result<()> {
     let shared_index = index::new_shared();
     index::spawn_scan(shared_index.clone(), cfg.extra_dirs.clone());
     let mru_store = mru::Mru::load()?;
+    let tray_handle = tray::build()?;
 
     let viewport = egui::ViewportBuilder::default()
         .with_title("wmenu")
@@ -36,7 +38,14 @@ fn main() -> Result<()> {
     eframe::run_native(
         "wmenu",
         options,
-        Box::new(move |_cc| Ok(Box::new(app::App::new(cfg, shared_index, mru_store)))),
+        Box::new(move |_cc| {
+            Ok(Box::new(app::App::new(
+                cfg,
+                shared_index,
+                mru_store,
+                tray_handle,
+            )))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("eframe run: {e}"))?;
     Ok(())
