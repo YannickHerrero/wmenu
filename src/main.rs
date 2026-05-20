@@ -43,13 +43,14 @@ fn main() -> Result<()> {
     eframe::run_native(
         "wmenu",
         options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
             Ok(Box::new(app::App::new(
                 cfg,
                 shared_index,
                 mru_store,
                 tray_handle,
                 hotkey_mgr,
+                cc.egui_ctx.clone(),
             )))
         }),
     )
