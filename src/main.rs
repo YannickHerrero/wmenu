@@ -28,7 +28,10 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let cfg = config::Config::load()?;
+    let mut cfg = config::Config::load()?;
+    // Reconcile the in-config autostart flag with the actual registry state so
+    // the settings UI reflects reality on startup.
+    cfg.daemon.autostart = autostart::is_enabled().unwrap_or(cfg.daemon.autostart);
     let shared_index = index::new_shared();
     index::spawn_scan(shared_index.clone(), cfg.launcher.extra_dirs.clone());
     let mru_store = mru::Mru::load()?;

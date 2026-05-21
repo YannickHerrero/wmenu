@@ -18,14 +18,13 @@ use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::omakase;
 use crate::tray::Tray;
-use crate::ui::{launcher, omakase as ui_omakase, settings, settings_window, theme};
+use crate::ui::{launcher, omakase as ui_omakase, settings, theme};
 
 pub const WINDOW_W: f32 = 640.0;
 pub const WINDOW_H: f32 = 400.0;
 
 pub enum View {
     Launcher,
-    Settings,
     Omakase,
 }
 
@@ -47,8 +46,6 @@ pub struct App {
     pub hotkey_input: String,
     pub hotkey_error: Option<String>,
     pub window_styled: bool,
-    pub settings_focus_request: bool,
-    pub autostart_enabled: bool,
     pub amphetamine: Amphetamine,
     pub omakase_page: omakase::Page,
     pub omakase_query: String,
@@ -59,7 +56,7 @@ pub struct App {
     pub cfg_rx: Receiver<Config>,
     _watcher: Option<RecommendedWatcher>,
     pub settings_open: bool,
-    pub settings_page: settings_window::Page,
+    pub settings_page: settings::Page,
     pub settings_dirty: bool,
     pub settings_status: Option<String>,
     pub binding_errors: Vec<BindingError>,
@@ -132,8 +129,6 @@ impl App {
             hotkey_input,
             hotkey_error: None,
             window_styled: false,
-            settings_focus_request: false,
-            autostart_enabled: autostart::is_enabled().unwrap_or(false),
             amphetamine,
             omakase_page: omakase::Page::Top,
             omakase_query: String::new(),
@@ -144,7 +139,7 @@ impl App {
             cfg_rx,
             _watcher: watcher,
             settings_open: false,
-            settings_page: settings_window::Page::default(),
+            settings_page: settings::Page::default(),
             settings_dirty: false,
             settings_status: None,
             binding_errors,
@@ -174,7 +169,6 @@ impl App {
         if let Err(e) = autostart::sync(self.cfg.daemon.autostart) {
             tracing::warn!("sync autostart: {e}");
         }
-        self.autostart_enabled = autostart::is_enabled().unwrap_or(self.cfg.daemon.autostart);
     }
 
     fn poll_cfg(&mut self, ctx: &egui::Context) {
@@ -195,7 +189,7 @@ impl App {
                 .with_inner_size([760.0, 560.0])
                 .with_min_inner_size([520.0, 380.0]),
             |child_ctx, _class| {
-                settings_window::render(self, child_ctx);
+                settings::render(self, child_ctx);
                 child_ctx.input(|i| i.viewport().close_requested())
             },
         );
@@ -282,10 +276,6 @@ impl App {
             } else if Some(id) == self.hotkey.escape_id() && self.visible {
                 match self.view {
                     View::Launcher => self.hide(ctx),
-                    View::Settings => {
-                        self.view = View::Launcher;
-                        self.focus_request = true;
-                    }
                     View::Omakase => self.omakase_back_or_hide(ctx),
                 }
             } else if let Some(idx) = self.hotkey.binding_index_for(id)
@@ -384,8 +374,7 @@ impl eframe::App for App {
                         self.selected = 0;
                     }
                     launcher::Action::OpenSettings => {
-                        self.view = View::Settings;
-                        self.settings_focus_request = true;
+                        self.settings_open = true;
                     }
                     launcher::Action::Hide => {
                         self.hide(ui.ctx());
@@ -438,74 +427,6 @@ impl eframe::App for App {
                         if let Err(e) = omakase::execute_system(action) {
                             tracing::warn!("execute {:?}: {e}", action);
                         }
-                    }
-                }
-            }
-            View::Settings => {
-                let palette = theme::palette(self.cfg.theme);
-                let initial_focus = self.settings_focus_request;
-                self.settings_focus_request = false;
-                let action = settings::show(
-                    ui,
-                    &palette,
-                    &mut self.cfg.theme,
-                    &mut self.hotkey_input,
-                    self.hotkey_error.as_deref(),
-                    &mut self.omakase_hotkey_input,
-                    self.omakase_hotkey_error.as_deref(),
-                    initial_focus,
-                    self.autostart_enabled,
-                );
-                match action {
-                    settings::Action::None => {}
-                    settings::Action::Back => {
-                        self.view = View::Launcher;
-                        self.focus_request = true;
-                    }
-                    settings::Action::ThemeChanged(t) => {
-                        theme::apply(ui.ctx(), t);
-                        if let Err(e) = self.cfg.save() {
-                            tracing::warn!("save config: {e}");
-                        }
-                    }
-                    settings::Action::ApplyHotkey(spec) => match self.hotkey.set(&spec) {
-                        Ok(_) => {
-                            self.cfg.launcher.hotkey.0 = spec;
-                            self.hotkey_error = None;
-                            if let Err(e) = self.cfg.save() {
-                                tracing::warn!("save config: {e}");
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!("apply hotkey: {e}");
-                            self.hotkey_error = Some(format!("{e}"));
-                        }
-                    },
-                    settings::Action::ApplyOmakaseHotkey(spec) => {
-                        match self.hotkey.set_omakase(&spec) {
-                            Ok(_) => {
-                                self.cfg.launcher.omakase_hotkey.0 = spec;
-                                self.omakase_hotkey_error = None;
-                                if let Err(e) = self.cfg.save() {
-                                    tracing::warn!("save config: {e}");
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!("apply omakase hotkey: {e}");
-                                self.omakase_hotkey_error = Some(format!("{e}"));
-                            }
-                        }
-                    }
-                    settings::Action::ToggleAutostart(want_on) => {
-                        let result = if want_on {
-                            autostart::enable()
-                        } else {
-                            autostart::disable()
-                        };
-                        if let Err(e) = result {
-                            tracing::warn!("toggle autostart: {e}");
-                        }
-                        self.autostart_enabled = autostart::is_enabled().unwrap_or(want_on);
                     }
                 }
             }
