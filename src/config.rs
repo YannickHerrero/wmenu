@@ -49,7 +49,18 @@ impl Default for Config {
             hotkey: HotkeySpec::default(),
             scan_interval_minutes: 5,
             extra_dirs: Vec::new(),
-            bindings: Vec::new(),
+            bindings: vec![
+                HotkeyBinding {
+                    label: "WezTerm".to_string(),
+                    spec: "Alt+Enter".to_string(),
+                    command: "\"C:/Program Files/WezTerm/wezterm-gui.exe\"".to_string(),
+                },
+                HotkeyBinding {
+                    label: "Firefox".to_string(),
+                    spec: "Alt+B".to_string(),
+                    command: "firefox".to_string(),
+                },
+            ],
         }
     }
 }
