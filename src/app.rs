@@ -210,6 +210,9 @@ impl eframe::App for App {
                         self.query.clear();
                         self.selected = 0;
                     }
+                    launcher::Action::OpenSettings => {
+                        self.view = View::Settings;
+                    }
                     launcher::Action::Hide => {
                         self.hide(ui.ctx());
                     }

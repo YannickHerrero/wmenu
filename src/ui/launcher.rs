@@ -11,6 +11,7 @@ pub enum Action {
     None,
     Launch(usize),
     Hide,
+    OpenSettings,
 }
 
 pub fn show(
@@ -54,7 +55,9 @@ pub fn show(
 
     let visible = ranked.len().min(MAX_VISIBLE_RESULTS);
     ui.input(|i| {
-        if i.key_pressed(Key::Escape) {
+        if i.modifiers.ctrl && i.key_pressed(Key::Comma) {
+            action = Action::OpenSettings;
+        } else if i.key_pressed(Key::Escape) {
             action = Action::Hide;
         } else if i.key_pressed(Key::Enter) && !ranked.is_empty() {
             action = Action::Launch(ranked[*selected]);
