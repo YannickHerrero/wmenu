@@ -40,6 +40,7 @@ pub struct App {
     pub was_focused: bool,
     pub hotkey_input: String,
     pub hotkey_error: Option<String>,
+    pub window_styled: bool,
 }
 
 impl App {
@@ -85,6 +86,7 @@ impl App {
             was_focused: false,
             hotkey_input,
             hotkey_error: None,
+            window_styled: false,
         }
     }
 
@@ -149,7 +151,18 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        theme::palette(self.cfg.theme)
+            .paper
+            .to_normalized_gamma_f32()
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        if !self.window_styled {
+            apply_window_style(frame);
+            self.window_styled = true;
+        }
+
         self.poll_tray(ui.ctx());
         self.poll_hotkey(ui.ctx());
 
@@ -289,3 +302,27 @@ fn center_position() -> egui::Pos2 {
     let (x, y, w, h) = active_monitor_rect();
     egui::pos2(x + (w - WINDOW_W) / 2.0, y + (h - WINDOW_H) / 2.0)
 }
+
+#[cfg(windows)]
+fn apply_window_style(frame: &eframe::Frame) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_TOOLWINDOW,
+    };
+
+    let Ok(handle) = frame.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::Win32(win32) = handle.as_raw() else {
+        return;
+    };
+    let hwnd = HWND(win32.hwnd.get() as *mut _);
+    unsafe {
+        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, current | (WS_EX_TOOLWINDOW.0 as isize));
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_window_style(_frame: &eframe::Frame) {}

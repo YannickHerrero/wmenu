@@ -4982,6 +4982,7 @@ dependencies = [
  "ico",
  "lnk",
  "nucleo-matcher",
+ "raw-window-handle",
  "serde",
  "serde_json",
  "toml 1.1.2+spec-1.1.0",
