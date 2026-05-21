@@ -3,6 +3,7 @@
 use anyhow::Result;
 use eframe::egui;
 
+mod amphetamine;
 mod app;
 mod autostart;
 mod config;
@@ -12,6 +13,7 @@ mod launch;
 mod logging;
 mod matcher;
 mod mru;
+mod omakase;
 mod single_instance;
 mod tray;
 mod ui;
