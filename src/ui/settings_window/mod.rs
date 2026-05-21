@@ -1,4 +1,5 @@
 pub mod general;
+pub mod launcher;
 
 use eframe::egui;
 
@@ -58,7 +59,7 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
 
         match app.settings_page {
             Page::General => general::show(app, ui),
-            Page::Launcher => stub(ui, "Launcher"),
+            Page::Launcher => launcher::show(app, ui),
             Page::Bindings => stub(ui, "Bindings"),
             Page::Amphetamine => stub(ui, "Amphetamine"),
             Page::About => stub(ui, "About"),
