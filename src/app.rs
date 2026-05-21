@@ -101,6 +101,7 @@ impl App {
         self.view = View::Launcher;
         self.query.clear();
         self.selected = 0;
+        self.hotkey.set_escape_active(true);
     }
 
     fn maybe_rescan(&self) {
@@ -118,6 +119,7 @@ impl App {
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.visible = false;
         self.was_focused = false;
+        self.hotkey.set_escape_active(false);
     }
 
     fn poll_tray(&mut self, ctx: &egui::Context) {
@@ -138,13 +140,21 @@ impl App {
             if event.state() != HotKeyState::Pressed {
                 continue;
             }
-            if Some(event.id()) != self.hotkey.current_id() {
-                continue;
-            }
-            if self.visible {
-                self.hide(ctx);
-            } else {
-                self.show(ctx);
+            let id = event.id();
+            if Some(id) == self.hotkey.current_id() {
+                if self.visible {
+                    self.hide(ctx);
+                } else {
+                    self.show(ctx);
+                }
+            } else if Some(id) == self.hotkey.escape_id() && self.visible {
+                match self.view {
+                    View::Launcher => self.hide(ctx),
+                    View::Settings => {
+                        self.view = View::Launcher;
+                        self.focus_request = true;
+                    }
+                }
             }
         }
     }

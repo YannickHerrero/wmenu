@@ -1,10 +1,12 @@
 use anyhow::{Context, Result};
 use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::hotkey::HotKey;
+use tracing::warn;
 
 pub struct Manager {
     manager: GlobalHotKeyManager,
     current: Option<HotKey>,
+    escape: Option<HotKey>,
 }
 
 impl Manager {
@@ -13,6 +15,7 @@ impl Manager {
         Ok(Self {
             manager,
             current: None,
+            escape: None,
         })
     }
 
@@ -33,5 +36,31 @@ impl Manager {
 
     pub fn current_id(&self) -> Option<u32> {
         self.current.map(|h| h.id())
+    }
+
+    pub fn set_escape_active(&mut self, active: bool) {
+        if active {
+            if self.escape.is_some() {
+                return;
+            }
+            let hotkey: HotKey = match "Escape".parse() {
+                Ok(h) => h,
+                Err(e) => {
+                    warn!("parse Escape hotkey: {e}");
+                    return;
+                }
+            };
+            if let Err(e) = self.manager.register(hotkey) {
+                warn!("register Escape hotkey: {e}");
+                return;
+            }
+            self.escape = Some(hotkey);
+        } else if let Some(old) = self.escape.take() {
+            let _ = self.manager.unregister(old);
+        }
+    }
+
+    pub fn escape_id(&self) -> Option<u32> {
+        self.escape.map(|h| h.id())
     }
 }
