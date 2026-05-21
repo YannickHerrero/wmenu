@@ -21,7 +21,7 @@ pub struct HotkeySpec(pub String);
 
 impl Default for HotkeySpec {
     fn default() -> Self {
-        Self("Shift+Space".to_string())
+        Self("Alt+Space".to_string())
     }
 }
 
