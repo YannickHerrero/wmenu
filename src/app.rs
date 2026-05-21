@@ -11,7 +11,7 @@ use crate::launch;
 use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::tray::Tray;
-use crate::ui::{launcher, theme};
+use crate::ui::{launcher, settings, theme};
 
 pub const WINDOW_W: f32 = 640.0;
 pub const WINDOW_H: f32 = 400.0;
@@ -182,7 +182,18 @@ impl eframe::App for App {
                 }
             }
             View::Settings => {
-                ui.label("Settings (todo)");
+                let palette = theme::palette(self.cfg.theme);
+                let action = settings::show(ui, &palette, &mut self.cfg.theme);
+                match action {
+                    settings::Action::None => {}
+                    settings::Action::Back => {
+                        self.view = View::Launcher;
+                        self.focus_request = true;
+                    }
+                    settings::Action::ThemeChanged(_t) => {
+                        // persisting + applying lands in step 20
+                    }
+                }
             }
         }
     }
