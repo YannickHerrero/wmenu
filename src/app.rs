@@ -307,6 +307,15 @@ impl eframe::App for App {
                 }
             }
         }
+
+        let accent = theme::palette(self.cfg.theme).accent;
+        let rect = ui.ctx().content_rect();
+        ui.painter().rect_stroke(
+            rect,
+            0.0,
+            egui::Stroke::new(2.0, accent),
+            egui::StrokeKind::Inside,
+        );
     }
 }
 
