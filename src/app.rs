@@ -55,11 +55,13 @@ impl App {
         }));
 
         let (menu_tx, menu_rx) = channel();
-        let ctx_menu = ctx;
+        let ctx_menu = ctx.clone();
         MenuEvent::set_event_handler(Some(move |event| {
             let _ = menu_tx.send(event);
             ctx_menu.request_repaint();
         }));
+
+        theme::apply(&ctx, cfg.theme);
 
         Self {
             cfg,
@@ -190,8 +192,11 @@ impl eframe::App for App {
                         self.view = View::Launcher;
                         self.focus_request = true;
                     }
-                    settings::Action::ThemeChanged(_t) => {
-                        // persisting + applying lands in step 20
+                    settings::Action::ThemeChanged(t) => {
+                        theme::apply(ui.ctx(), t);
+                        if let Err(e) = self.cfg.save() {
+                            tracing::warn!("save config: {e}");
+                        }
                     }
                 }
             }
