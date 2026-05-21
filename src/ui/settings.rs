@@ -8,6 +8,7 @@ pub enum Action {
     Back,
     ThemeChanged(Theme),
     ApplyHotkey(String),
+    ApplyOmakaseHotkey(String),
     ToggleAutostart(bool),
 }
 
@@ -25,6 +26,8 @@ pub fn show(
     theme: &mut Theme,
     hotkey_input: &mut String,
     hotkey_error: Option<&str>,
+    omakase_hotkey_input: &mut String,
+    omakase_hotkey_error: Option<&str>,
     initial_focus_request: bool,
     autostart_enabled: bool,
 ) -> Action {
@@ -84,6 +87,19 @@ pub fn show(
                     });
                     ui.colored_label(palette.ink_faint, "e.g. Alt+Space, Ctrl+Alt+Space");
                     if let Some(err) = hotkey_error {
+                        ui.colored_label(palette.accent, format!("Error: {err}"));
+                    }
+
+                    ui.add_space(12.0);
+                    ui.colored_label(palette.ink_soft, "Omakase hotkey");
+                    ui.horizontal(|ui| {
+                        text_field(ui, palette, omakase_hotkey_input, 180.0);
+                        if ui.button("Apply").clicked() {
+                            action = Action::ApplyOmakaseHotkey(omakase_hotkey_input.clone());
+                        }
+                    });
+                    ui.colored_label(palette.ink_faint, "e.g. Alt+Super+Space (Super = Win key)");
+                    if let Some(err) = omakase_hotkey_error {
                         ui.colored_label(palette.accent, format!("Error: {err}"));
                     }
 

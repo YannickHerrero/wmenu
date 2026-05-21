@@ -5,6 +5,7 @@ use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use tray_icon::menu::MenuEvent;
 
+use crate::amphetamine::Amphetamine;
 use crate::autostart;
 use crate::config::Config;
 use crate::hotkey::Manager as HotkeyMgr;
@@ -13,8 +14,9 @@ use crate::index::SharedIndex;
 use crate::launch;
 use crate::matcher::Engine;
 use crate::mru::Mru;
+use crate::omakase;
 use crate::tray::Tray;
-use crate::ui::{launcher, settings, theme};
+use crate::ui::{launcher, omakase as ui_omakase, settings, theme};
 
 pub const WINDOW_W: f32 = 640.0;
 pub const WINDOW_H: f32 = 400.0;
@@ -22,6 +24,7 @@ pub const WINDOW_H: f32 = 400.0;
 pub enum View {
     Launcher,
     Settings,
+    Omakase,
 }
 
 pub struct App {
@@ -44,6 +47,13 @@ pub struct App {
     pub window_styled: bool,
     pub settings_focus_request: bool,
     pub autostart_enabled: bool,
+    pub amphetamine: Amphetamine,
+    pub omakase_page: omakase::Page,
+    pub omakase_query: String,
+    pub omakase_selected: usize,
+    pub omakase_focus_request: bool,
+    pub omakase_hotkey_input: String,
+    pub omakase_hotkey_error: Option<String>,
 }
 
 impl App {
@@ -52,7 +62,7 @@ impl App {
         index: SharedIndex,
         mru: Mru,
         tray: Tray,
-        hotkey: HotkeyMgr,
+        mut hotkey: HotkeyMgr,
         ctx: egui::Context,
     ) -> Self {
         let (hotkey_tx, hotkey_rx) = channel();
@@ -71,7 +81,13 @@ impl App {
 
         theme::apply(&ctx, cfg.theme);
 
+        if let Err(e) = hotkey.set_omakase(&cfg.omakase_hotkey.0) {
+            tracing::warn!("register omakase hotkey {}: {e}", cfg.omakase_hotkey.0);
+        }
+
         let hotkey_input = cfg.hotkey.0.clone();
+        let omakase_hotkey_input = cfg.omakase_hotkey.0.clone();
+        let amphetamine = Amphetamine::new(cfg.amphetamine_enabled);
         Self {
             cfg,
             index,
@@ -92,21 +108,41 @@ impl App {
             window_styled: false,
             settings_focus_request: false,
             autostart_enabled: autostart::is_enabled().unwrap_or(false),
+            amphetamine,
+            omakase_page: omakase::Page::Top,
+            omakase_query: String::new(),
+            omakase_selected: 0,
+            omakase_focus_request: false,
+            omakase_hotkey_input,
+            omakase_hotkey_error: None,
         }
     }
 
-    fn show(&mut self, ctx: &egui::Context) {
-        self.maybe_rescan();
+    fn show_window(&mut self, ctx: &egui::Context) {
         let pos = center_position();
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         self.visible = true;
+        self.hotkey.set_escape_active(true);
+    }
+
+    fn show(&mut self, ctx: &egui::Context) {
+        self.maybe_rescan();
+        self.show_window(ctx);
         self.focus_request = true;
         self.view = View::Launcher;
         self.query.clear();
         self.selected = 0;
-        self.hotkey.set_escape_active(true);
+    }
+
+    fn show_omakase(&mut self, ctx: &egui::Context) {
+        self.show_window(ctx);
+        self.view = View::Omakase;
+        self.omakase_page = omakase::Page::Top;
+        self.omakase_query.clear();
+        self.omakase_selected = 0;
+        self.omakase_focus_request = true;
     }
 
     fn maybe_rescan(&self) {
@@ -153,6 +189,12 @@ impl App {
                 } else {
                     self.show(ctx);
                 }
+            } else if Some(id) == self.hotkey.omakase_id() {
+                if self.visible {
+                    self.hide(ctx);
+                } else {
+                    self.show_omakase(ctx);
+                }
             } else if Some(id) == self.hotkey.escape_id() && self.visible {
                 match self.view {
                     View::Launcher => self.hide(ctx),
@@ -160,7 +202,23 @@ impl App {
                         self.view = View::Launcher;
                         self.focus_request = true;
                     }
+                    View::Omakase => self.omakase_back_or_hide(ctx),
                 }
+            }
+        }
+    }
+
+    fn omakase_back_or_hide(&mut self, ctx: &egui::Context) {
+        self.omakase_query.clear();
+        self.omakase_selected = 0;
+        self.omakase_focus_request = true;
+        match self.omakase_page {
+            omakase::Page::Top => self.hide(ctx),
+            omakase::Page::System | omakase::Page::Help => {
+                self.omakase_page = omakase::Page::Top;
+            }
+            omakase::Page::Confirm(_) => {
+                self.omakase_page = omakase::Page::System;
             }
         }
     }
@@ -240,6 +298,55 @@ impl eframe::App for App {
                     }
                 }
             }
+            View::Omakase => {
+                let palette = theme::palette(self.cfg.theme);
+                let amph = self.amphetamine.is_enabled();
+                let action = ui_omakase::show(
+                    ui,
+                    &palette,
+                    self.omakase_page,
+                    &mut self.omakase_query,
+                    &mut self.omakase_selected,
+                    amph,
+                    self.omakase_focus_request,
+                );
+                self.omakase_focus_request = false;
+                match action {
+                    ui_omakase::Action::None => {}
+                    ui_omakase::Action::Back => self.omakase_back_or_hide(ui.ctx()),
+                    ui_omakase::Action::Hide => self.hide(ui.ctx()),
+                    ui_omakase::Action::EnterSystem => {
+                        self.omakase_page = omakase::Page::System;
+                        self.omakase_query.clear();
+                        self.omakase_selected = 0;
+                        self.omakase_focus_request = true;
+                    }
+                    ui_omakase::Action::EnterHelp => {
+                        self.omakase_page = omakase::Page::Help;
+                    }
+                    ui_omakase::Action::ToggleAmphetamine => {
+                        let new = !self.amphetamine.is_enabled();
+                        self.amphetamine.set(new);
+                        self.cfg.amphetamine_enabled = new;
+                        if let Err(e) = self.cfg.save() {
+                            tracing::warn!("save config: {e}");
+                        }
+                    }
+                    ui_omakase::Action::SelectSystem(action) => {
+                        self.omakase_page = omakase::Page::Confirm(action);
+                        self.omakase_focus_request = true;
+                    }
+                    ui_omakase::Action::ConfirmSystem(action) => {
+                        ui.ctx()
+                            .send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        self.visible = false;
+                        self.hotkey.set_escape_active(false);
+                        if let Err(e) = omakase::execute_system(action) {
+                            tracing::warn!("execute {:?}: {e}", action);
+                        }
+                    }
+                }
+            }
             View::Settings => {
                 let palette = theme::palette(self.cfg.theme);
                 let initial_focus = self.settings_focus_request;
@@ -250,6 +357,8 @@ impl eframe::App for App {
                     &mut self.cfg.theme,
                     &mut self.hotkey_input,
                     self.hotkey_error.as_deref(),
+                    &mut self.omakase_hotkey_input,
+                    self.omakase_hotkey_error.as_deref(),
                     initial_focus,
                     self.autostart_enabled,
                 );
@@ -278,6 +387,21 @@ impl eframe::App for App {
                             self.hotkey_error = Some(format!("{e}"));
                         }
                     },
+                    settings::Action::ApplyOmakaseHotkey(spec) => {
+                        match self.hotkey.set_omakase(&spec) {
+                            Ok(_) => {
+                                self.cfg.omakase_hotkey.0 = spec;
+                                self.omakase_hotkey_error = None;
+                                if let Err(e) = self.cfg.save() {
+                                    tracing::warn!("save config: {e}");
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("apply omakase hotkey: {e}");
+                                self.omakase_hotkey_error = Some(format!("{e}"));
+                            }
+                        }
+                    }
                     settings::Action::ToggleAutostart(want_on) => {
                         let result = if want_on {
                             autostart::enable()
