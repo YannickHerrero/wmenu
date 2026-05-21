@@ -1,3 +1,4 @@
+pub mod bindings;
 pub mod general;
 pub mod launcher;
 
@@ -57,12 +58,16 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
             });
         });
 
+        let before = config_signature(&app.cfg);
         match app.settings_page {
             Page::General => general::show(app, ui),
             Page::Launcher => launcher::show(app, ui),
-            Page::Bindings => stub(ui, "Bindings"),
+            Page::Bindings => bindings::show(app, ui),
             Page::Amphetamine => stub(ui, "Amphetamine"),
             Page::About => stub(ui, "About"),
+        }
+        if config_signature(&app.cfg) != before {
+            app.settings_dirty = true;
         }
     });
 }
@@ -78,6 +83,10 @@ fn stub(ui: &mut egui::Ui, name: &str) {
     ui.heading(name);
     ui.add_space(8.0);
     ui.label("(under construction)");
+}
+
+fn config_signature(cfg: &crate::config::Config) -> Option<String> {
+    toml::to_string(cfg).ok()
 }
 
 fn save_and_apply(app: &mut App, child_ctx: &egui::Context) {

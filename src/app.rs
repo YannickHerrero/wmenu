@@ -10,7 +10,7 @@ use crate::action;
 use crate::amphetamine::Amphetamine;
 use crate::autostart;
 use crate::config::{Config, watcher as config_watcher};
-use crate::hotkey::Manager as HotkeyMgr;
+use crate::hotkey::{BindingError, Manager as HotkeyMgr};
 use crate::index;
 use crate::index::SharedIndex;
 use crate::launch;
@@ -62,6 +62,7 @@ pub struct App {
     pub settings_page: settings_window::Page,
     pub settings_dirty: bool,
     pub settings_status: Option<String>,
+    pub binding_errors: Vec<BindingError>,
 }
 
 impl App {
@@ -105,6 +106,11 @@ impl App {
             );
         }
 
+        let binding_errors = hotkey.set_bindings(&cfg.bindings);
+        for err in &binding_errors {
+            tracing::warn!("binding #{}: {}", err.index, err.message);
+        }
+
         let hotkey_input = cfg.launcher.hotkey.0.clone();
         let omakase_hotkey_input = cfg.launcher.omakase_hotkey.0.clone();
         let amphetamine = Amphetamine::new(cfg.amphetamine_enabled);
@@ -141,6 +147,7 @@ impl App {
             settings_page: settings_window::Page::default(),
             settings_dirty: false,
             settings_status: None,
+            binding_errors,
         }
     }
 
@@ -162,6 +169,7 @@ impl App {
         for err in &errs {
             tracing::warn!("binding #{}: {}", err.index, err.message);
         }
+        self.binding_errors = errs;
         self.amphetamine.set(self.cfg.amphetamine_enabled);
         if let Err(e) = autostart::sync(self.cfg.daemon.autostart) {
             tracing::warn!("sync autostart: {e}");
