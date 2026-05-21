@@ -36,6 +36,8 @@ pub struct App {
     pub selected: usize,
     pub focus_request: bool,
     pub was_focused: bool,
+    pub hotkey_input: String,
+    pub hotkey_error: Option<String>,
 }
 
 impl App {
@@ -63,6 +65,7 @@ impl App {
 
         theme::apply(&ctx, cfg.theme);
 
+        let hotkey_input = cfg.hotkey.0.clone();
         Self {
             cfg,
             index,
@@ -78,6 +81,8 @@ impl App {
             selected: 0,
             focus_request: false,
             was_focused: false,
+            hotkey_input,
+            hotkey_error: None,
         }
     }
 
@@ -185,7 +190,13 @@ impl eframe::App for App {
             }
             View::Settings => {
                 let palette = theme::palette(self.cfg.theme);
-                let action = settings::show(ui, &palette, &mut self.cfg.theme);
+                let action = settings::show(
+                    ui,
+                    &palette,
+                    &mut self.cfg.theme,
+                    &mut self.hotkey_input,
+                    self.hotkey_error.as_deref(),
+                );
                 match action {
                     settings::Action::None => {}
                     settings::Action::Back => {
@@ -198,6 +209,19 @@ impl eframe::App for App {
                             tracing::warn!("save config: {e}");
                         }
                     }
+                    settings::Action::ApplyHotkey(spec) => match self.hotkey.set(&spec) {
+                        Ok(_) => {
+                            self.cfg.hotkey.0 = spec;
+                            self.hotkey_error = None;
+                            if let Err(e) = self.cfg.save() {
+                                tracing::warn!("save config: {e}");
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("apply hotkey: {e}");
+                            self.hotkey_error = Some(format!("{e}"));
+                        }
+                    },
                 }
             }
         }
