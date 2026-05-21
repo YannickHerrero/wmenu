@@ -4,6 +4,7 @@ use anyhow::Result;
 use eframe::egui;
 
 mod app;
+mod autostart;
 mod command;
 mod config;
 mod hotkey;

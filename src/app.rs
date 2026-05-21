@@ -5,6 +5,7 @@ use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use tray_icon::menu::MenuEvent;
 
+use crate::autostart;
 use crate::command;
 use crate::config::{Config, HotkeyBinding};
 use crate::hotkey::{BindingError, Manager as HotkeyMgr};
@@ -46,6 +47,7 @@ pub struct App {
     pub binding_errors: Vec<BindingError>,
     pub settings_focus_request: bool,
     pub focus_new_binding: Option<usize>,
+    pub autostart_enabled: bool,
 }
 
 impl App {
@@ -98,6 +100,7 @@ impl App {
             binding_errors,
             settings_focus_request: false,
             focus_new_binding: None,
+            autostart_enabled: autostart::is_enabled().unwrap_or(false),
         }
     }
 
@@ -262,6 +265,7 @@ impl eframe::App for App {
                     &self.binding_errors,
                     initial_focus,
                     focus_binding,
+                    self.autostart_enabled,
                 );
                 match action {
                     settings::Action::None => {}
@@ -303,6 +307,17 @@ impl eframe::App for App {
                         if let Err(e) = self.cfg.save() {
                             tracing::warn!("save config: {e}");
                         }
+                    }
+                    settings::Action::ToggleAutostart(want_on) => {
+                        let result = if want_on {
+                            autostart::enable()
+                        } else {
+                            autostart::disable()
+                        };
+                        if let Err(e) = result {
+                            tracing::warn!("toggle autostart: {e}");
+                        }
+                        self.autostart_enabled = autostart::is_enabled().unwrap_or(want_on);
                     }
                 }
             }

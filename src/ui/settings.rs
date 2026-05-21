@@ -12,6 +12,7 @@ pub enum Action {
     AddBinding,
     RemoveBinding(usize),
     ApplyBindings,
+    ToggleAutostart(bool),
 }
 
 const THEMES: [(Theme, &str); 5] = [
@@ -35,6 +36,7 @@ pub fn show(
     binding_errors: &[BindingError],
     initial_focus_request: bool,
     focus_binding: Option<usize>,
+    autostart_enabled: bool,
 ) -> Action {
     let mut action = Action::None;
 
@@ -100,6 +102,19 @@ pub fn show(
                     ui.colored_label(palette.ink_faint, "e.g. Alt+Space, Ctrl+Alt+Space");
                     if let Some(err) = hotkey_error {
                         ui.colored_label(palette.accent, format!("Error: {err}"));
+                    }
+
+                    ui.add_space(16.0);
+                    ui.colored_label(palette.ink_soft, "Startup");
+                    let mut as_state = autostart_enabled;
+                    if ui
+                        .checkbox(
+                            &mut as_state,
+                            egui::RichText::new("Launch wmenu at Windows login").color(palette.ink),
+                        )
+                        .changed()
+                    {
+                        action = Action::ToggleAutostart(as_state);
                     }
 
                     ui.add_space(16.0);
