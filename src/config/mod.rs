@@ -1,4 +1,5 @@
 mod schema;
+pub mod watcher;
 
 use std::fs;
 use std::path::PathBuf;
