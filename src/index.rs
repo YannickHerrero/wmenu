@@ -5,8 +5,7 @@ use std::thread;
 use std::time::Instant;
 
 use arc_swap::ArcSwap;
-use lnk::ShellLink;
-use tracing::{debug, warn};
+use tracing::debug;
 
 #[derive(Debug, Clone)]
 pub struct AppEntry {
@@ -80,8 +79,8 @@ fn walk(dir: &Path, entries: &mut Vec<AppEntry>) {
         if ftype.is_dir() {
             walk(&path, entries);
         } else if is_lnk(&path) {
-            if let Some(app) = parse_lnk(&path) {
-                entries.push(app);
+            if let Some(name) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) {
+                entries.push(AppEntry { name, path });
             }
         }
     }
@@ -92,27 +91,4 @@ fn is_lnk(path: &Path) -> bool {
         .and_then(|s| s.to_str())
         .map(|s| s.eq_ignore_ascii_case("lnk"))
         .unwrap_or(false)
-}
-
-fn parse_lnk(lnk_path: &Path) -> Option<AppEntry> {
-    let name = lnk_path.file_stem()?.to_string_lossy().into_owned();
-    match ShellLink::open(lnk_path, lnk::encoding::WINDOWS_1252) {
-        Ok(link) => {
-            let path = match link.link_target() {
-                Some(t) if !t.is_empty() => PathBuf::from(t),
-                _ => {
-                    debug!("UWP/no-target lnk fallback: {}", lnk_path.display());
-                    lnk_path.to_path_buf()
-                }
-            };
-            Some(AppEntry { name, path })
-        }
-        Err(e) => {
-            warn!("failed to parse .lnk {}: {}", lnk_path.display(), e);
-            Some(AppEntry {
-                name,
-                path: lnk_path.to_path_buf(),
-            })
-        }
-    }
 }
