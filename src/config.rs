@@ -32,6 +32,14 @@ pub struct Config {
     pub hotkey: HotkeySpec,
     pub scan_interval_minutes: u64,
     pub extra_dirs: Vec<PathBuf>,
+    #[serde(default = "default_omakase_hotkey")]
+    pub omakase_hotkey: HotkeySpec,
+    #[serde(default)]
+    pub amphetamine_enabled: bool,
+}
+
+fn default_omakase_hotkey() -> HotkeySpec {
+    HotkeySpec("Alt+Super+Space".to_string())
 }
 
 impl Default for Config {
@@ -41,6 +49,8 @@ impl Default for Config {
             hotkey: HotkeySpec::default(),
             scan_interval_minutes: 5,
             extra_dirs: Vec::new(),
+            omakase_hotkey: default_omakase_hotkey(),
+            amphetamine_enabled: false,
         }
     }
 }

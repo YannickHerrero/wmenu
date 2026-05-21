@@ -7,6 +7,7 @@ pub struct Manager {
     manager: GlobalHotKeyManager,
     current: Option<HotKey>,
     escape: Option<HotKey>,
+    omakase: Option<HotKey>,
 }
 
 impl Manager {
@@ -16,6 +17,7 @@ impl Manager {
             manager,
             current: None,
             escape: None,
+            omakase: None,
         })
     }
 
@@ -36,6 +38,25 @@ impl Manager {
 
     pub fn current_id(&self) -> Option<u32> {
         self.current.map(|h| h.id())
+    }
+
+    pub fn set_omakase(&mut self, spec: &str) -> Result<u32> {
+        if let Some(old) = self.omakase.take() {
+            let _ = self.manager.unregister(old);
+        }
+        let hotkey: HotKey = spec
+            .parse()
+            .with_context(|| format!("parse omakase hotkey: {spec}"))?;
+        self.manager
+            .register(hotkey)
+            .with_context(|| format!("register omakase hotkey: {spec}"))?;
+        let id = hotkey.id();
+        self.omakase = Some(hotkey);
+        Ok(id)
+    }
+
+    pub fn omakase_id(&self) -> Option<u32> {
+        self.omakase.map(|h| h.id())
     }
 
     pub fn set_escape_active(&mut self, active: bool) {
