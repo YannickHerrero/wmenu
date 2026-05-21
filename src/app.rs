@@ -3,12 +3,13 @@ use std::time::Duration;
 
 use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
+use notify::RecommendedWatcher;
 use tray_icon::menu::MenuEvent;
 
 use crate::action;
 use crate::amphetamine::Amphetamine;
 use crate::autostart;
-use crate::config::Config;
+use crate::config::{Config, watcher as config_watcher};
 use crate::hotkey::Manager as HotkeyMgr;
 use crate::index;
 use crate::index::SharedIndex;
@@ -55,6 +56,8 @@ pub struct App {
     pub omakase_focus_request: bool,
     pub omakase_hotkey_input: String,
     pub omakase_hotkey_error: Option<String>,
+    pub cfg_rx: Receiver<Config>,
+    _watcher: Option<RecommendedWatcher>,
 }
 
 impl App {
@@ -79,6 +82,15 @@ impl App {
             let _ = menu_tx.send(event);
             ctx_menu.request_repaint();
         }));
+
+        let (cfg_tx, cfg_rx) = channel();
+        let watcher = match config_watcher::spawn(cfg_tx) {
+            Ok(w) => Some(w),
+            Err(e) => {
+                tracing::warn!("start config watcher: {e}");
+                None
+            }
+        };
 
         theme::apply(&ctx, cfg.theme);
 
@@ -119,6 +131,40 @@ impl App {
             omakase_focus_request: false,
             omakase_hotkey_input,
             omakase_hotkey_error: None,
+            cfg_rx,
+            _watcher: watcher,
+        }
+    }
+
+    fn apply_reloaded(&mut self, ctx: &egui::Context) {
+        theme::apply(ctx, self.cfg.theme);
+        if let Err(e) = self.hotkey.set(&self.cfg.launcher.hotkey.0) {
+            tracing::warn!("re-apply launcher hotkey: {e}");
+        } else {
+            self.hotkey_input = self.cfg.launcher.hotkey.0.clone();
+            self.hotkey_error = None;
+        }
+        if let Err(e) = self.hotkey.set_omakase(&self.cfg.launcher.omakase_hotkey.0) {
+            tracing::warn!("re-apply omakase hotkey: {e}");
+        } else {
+            self.omakase_hotkey_input = self.cfg.launcher.omakase_hotkey.0.clone();
+            self.omakase_hotkey_error = None;
+        }
+        let errs = self.hotkey.set_bindings(&self.cfg.bindings);
+        for err in &errs {
+            tracing::warn!("binding #{}: {}", err.index, err.message);
+        }
+        self.amphetamine.set(self.cfg.amphetamine_enabled);
+        if let Err(e) = autostart::sync(self.cfg.daemon.autostart) {
+            tracing::warn!("sync autostart: {e}");
+        }
+        self.autostart_enabled = autostart::is_enabled().unwrap_or(self.cfg.daemon.autostart);
+    }
+
+    fn poll_cfg(&mut self, ctx: &egui::Context) {
+        while let Ok(cfg) = self.cfg_rx.try_recv() {
+            self.cfg = cfg;
+            self.apply_reloaded(ctx);
         }
     }
 
@@ -255,6 +301,7 @@ impl eframe::App for App {
 
         self.poll_tray(ui.ctx());
         self.poll_hotkey(ui.ctx());
+        self.poll_cfg(ui.ctx());
 
         if self.visible {
             let focused = ui.ctx().input(|i| i.focused);

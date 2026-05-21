@@ -56,7 +56,17 @@ pub fn enable() -> Result<()> {
     anyhow::bail!("autostart is only implemented on Windows")
 }
 
+#[cfg(windows)]
+pub fn sync(desired: bool) -> Result<()> {
+    if desired { enable() } else { disable() }
+}
+
 #[cfg(not(windows))]
 pub fn disable() -> Result<()> {
+    Ok(())
+}
+
+#[cfg(not(windows))]
+pub fn sync(_desired: bool) -> Result<()> {
     Ok(())
 }
