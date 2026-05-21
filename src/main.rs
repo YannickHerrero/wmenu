@@ -29,12 +29,12 @@ fn main() -> Result<()> {
 
     let cfg = config::Config::load()?;
     let shared_index = index::new_shared();
-    index::spawn_scan(shared_index.clone(), cfg.extra_dirs.clone());
+    index::spawn_scan(shared_index.clone(), cfg.launcher.extra_dirs.clone());
     let mru_store = mru::Mru::load()?;
     let tray_handle = tray::build()?;
     let mut hotkey_mgr = hotkey::Manager::new()?;
-    if let Err(e) = hotkey_mgr.set(&cfg.hotkey.0) {
-        tracing::warn!("default hotkey {} failed: {e}", cfg.hotkey.0);
+    if let Err(e) = hotkey_mgr.set(&cfg.launcher.hotkey.0) {
+        tracing::warn!("default hotkey {} failed: {e}", cfg.launcher.hotkey.0);
     }
 
     let viewport = egui::ViewportBuilder::default()

@@ -81,12 +81,15 @@ impl App {
 
         theme::apply(&ctx, cfg.theme);
 
-        if let Err(e) = hotkey.set_omakase(&cfg.omakase_hotkey.0) {
-            tracing::warn!("register omakase hotkey {}: {e}", cfg.omakase_hotkey.0);
+        if let Err(e) = hotkey.set_omakase(&cfg.launcher.omakase_hotkey.0) {
+            tracing::warn!(
+                "register omakase hotkey {}: {e}",
+                cfg.launcher.omakase_hotkey.0
+            );
         }
 
-        let hotkey_input = cfg.hotkey.0.clone();
-        let omakase_hotkey_input = cfg.omakase_hotkey.0.clone();
+        let hotkey_input = cfg.launcher.hotkey.0.clone();
+        let omakase_hotkey_input = cfg.launcher.omakase_hotkey.0.clone();
         let amphetamine = Amphetamine::new(cfg.amphetamine_enabled);
         Self {
             cfg,
@@ -146,13 +149,13 @@ impl App {
     }
 
     fn maybe_rescan(&self) {
-        let max_age = Duration::from_secs(self.cfg.scan_interval_minutes * 60);
+        let max_age = Duration::from_secs(self.cfg.launcher.scan_interval_minutes * 60);
         let stale = match self.index.load().scanned_at {
             None => true,
             Some(at) => at.elapsed() > max_age,
         };
         if stale {
-            index::spawn_scan(self.index.clone(), self.cfg.extra_dirs.clone());
+            index::spawn_scan(self.index.clone(), self.cfg.launcher.extra_dirs.clone());
         }
     }
 
@@ -376,7 +379,7 @@ impl eframe::App for App {
                     }
                     settings::Action::ApplyHotkey(spec) => match self.hotkey.set(&spec) {
                         Ok(_) => {
-                            self.cfg.hotkey.0 = spec;
+                            self.cfg.launcher.hotkey.0 = spec;
                             self.hotkey_error = None;
                             if let Err(e) = self.cfg.save() {
                                 tracing::warn!("save config: {e}");
@@ -390,7 +393,7 @@ impl eframe::App for App {
                     settings::Action::ApplyOmakaseHotkey(spec) => {
                         match self.hotkey.set_omakase(&spec) {
                             Ok(_) => {
-                                self.cfg.omakase_hotkey.0 = spec;
+                                self.cfg.launcher.omakase_hotkey.0 = spec;
                                 self.omakase_hotkey_error = None;
                                 if let Err(e) = self.cfg.save() {
                                     tracing::warn!("save config: {e}");
