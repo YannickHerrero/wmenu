@@ -6,9 +6,8 @@ use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use tray_icon::menu::MenuEvent;
 
 use crate::autostart;
-use crate::command;
-use crate::config::{Config, HotkeyBinding};
-use crate::hotkey::{BindingError, Manager as HotkeyMgr};
+use crate::config::Config;
+use crate::hotkey::Manager as HotkeyMgr;
 use crate::index;
 use crate::index::SharedIndex;
 use crate::launch;
@@ -43,10 +42,7 @@ pub struct App {
     pub hotkey_input: String,
     pub hotkey_error: Option<String>,
     pub window_styled: bool,
-    pub binding_drafts: Vec<HotkeyBinding>,
-    pub binding_errors: Vec<BindingError>,
     pub settings_focus_request: bool,
-    pub focus_new_binding: Option<usize>,
     pub autostart_enabled: bool,
 }
 
@@ -56,7 +52,7 @@ impl App {
         index: SharedIndex,
         mru: Mru,
         tray: Tray,
-        mut hotkey: HotkeyMgr,
+        hotkey: HotkeyMgr,
         ctx: egui::Context,
     ) -> Self {
         let (hotkey_tx, hotkey_rx) = channel();
@@ -76,8 +72,6 @@ impl App {
         theme::apply(&ctx, cfg.theme);
 
         let hotkey_input = cfg.hotkey.0.clone();
-        let binding_drafts = cfg.bindings.clone();
-        let binding_errors = hotkey.set_bindings(&binding_drafts);
         Self {
             cfg,
             index,
@@ -96,10 +90,7 @@ impl App {
             hotkey_input,
             hotkey_error: None,
             window_styled: false,
-            binding_drafts,
-            binding_errors,
             settings_focus_request: false,
-            focus_new_binding: None,
             autostart_enabled: autostart::is_enabled().unwrap_or(false),
         }
     }
@@ -169,12 +160,6 @@ impl App {
                         self.view = View::Launcher;
                         self.focus_request = true;
                     }
-                }
-            } else if let Some(cmd) = self.hotkey.command_for(id) {
-                let cmd = cmd.to_string();
-                tracing::info!("binding fired (id={id}): {cmd}");
-                if let Err(e) = command::run(&cmd) {
-                    tracing::warn!("run binding '{cmd}': {e}");
                 }
             }
         }
@@ -254,17 +239,13 @@ impl eframe::App for App {
                 let palette = theme::palette(self.cfg.theme);
                 let initial_focus = self.settings_focus_request;
                 self.settings_focus_request = false;
-                let focus_binding = self.focus_new_binding.take();
                 let action = settings::show(
                     ui,
                     &palette,
                     &mut self.cfg.theme,
                     &mut self.hotkey_input,
                     self.hotkey_error.as_deref(),
-                    &mut self.binding_drafts,
-                    &self.binding_errors,
                     initial_focus,
-                    focus_binding,
                     self.autostart_enabled,
                 );
                 match action {
@@ -292,22 +273,6 @@ impl eframe::App for App {
                             self.hotkey_error = Some(format!("{e}"));
                         }
                     },
-                    settings::Action::AddBinding => {
-                        self.binding_drafts.push(HotkeyBinding::default());
-                        self.focus_new_binding = Some(self.binding_drafts.len() - 1);
-                    }
-                    settings::Action::RemoveBinding(i) => {
-                        if i < self.binding_drafts.len() {
-                            self.binding_drafts.remove(i);
-                        }
-                    }
-                    settings::Action::ApplyBindings => {
-                        self.binding_errors = self.hotkey.set_bindings(&self.binding_drafts);
-                        self.cfg.bindings = self.binding_drafts.clone();
-                        if let Err(e) = self.cfg.save() {
-                            tracing::warn!("save config: {e}");
-                        }
-                    }
                     settings::Action::ToggleAutostart(want_on) => {
                         let result = if want_on {
                             autostart::enable()

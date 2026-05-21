@@ -1,28 +1,12 @@
-use std::collections::HashMap;
-
 use anyhow::{Context, Result};
 use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::hotkey::HotKey;
 use tracing::warn;
 
-use crate::config::HotkeyBinding;
-
-pub struct RegisteredBinding {
-    pub hotkey: HotKey,
-    pub command: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct BindingError {
-    pub index: usize,
-    pub message: String,
-}
-
 pub struct Manager {
     manager: GlobalHotKeyManager,
     current: Option<HotKey>,
     escape: Option<HotKey>,
-    bindings: HashMap<u32, RegisteredBinding>,
 }
 
 impl Manager {
@@ -32,7 +16,6 @@ impl Manager {
             manager,
             current: None,
             escape: None,
-            bindings: HashMap::new(),
         })
     }
 
@@ -79,63 +62,5 @@ impl Manager {
 
     pub fn escape_id(&self) -> Option<u32> {
         self.escape.map(|h| h.id())
-    }
-
-    pub fn set_bindings(&mut self, list: &[HotkeyBinding]) -> Vec<BindingError> {
-        for (_, reg) in self.bindings.drain() {
-            let _ = self.manager.unregister(reg.hotkey);
-        }
-
-        let mut errors = Vec::new();
-        for (index, binding) in list.iter().enumerate() {
-            let trimmed = binding.spec.trim();
-            if trimmed.is_empty() || binding.command.trim().is_empty() {
-                continue;
-            }
-            let hotkey: HotKey = match trimmed.parse() {
-                Ok(h) => h,
-                Err(e) => {
-                    errors.push(BindingError {
-                        index,
-                        message: format!("invalid hotkey '{trimmed}': {e}"),
-                    });
-                    continue;
-                }
-            };
-            if Some(hotkey.id()) == self.current.map(|h| h.id()) {
-                errors.push(BindingError {
-                    index,
-                    message: "conflicts with launcher hotkey".to_string(),
-                });
-                continue;
-            }
-            if let Err(e) = self.manager.register(hotkey) {
-                errors.push(BindingError {
-                    index,
-                    message: format!("register failed: {e}"),
-                });
-                continue;
-            }
-            self.bindings.insert(
-                hotkey.id(),
-                RegisteredBinding {
-                    hotkey,
-                    command: binding.command.clone(),
-                },
-            );
-            tracing::info!("registered binding {} -> {}", trimmed, binding.command);
-        }
-        if !errors.is_empty() {
-            tracing::warn!(
-                "{} of {} binding(s) failed to register",
-                errors.len(),
-                list.len()
-            );
-        }
-        errors
-    }
-
-    pub fn command_for(&self, id: u32) -> Option<&str> {
-        self.bindings.get(&id).map(|b| b.command.as_str())
     }
 }

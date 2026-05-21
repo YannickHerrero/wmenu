@@ -2,7 +2,7 @@
 
 ![wmenu demo](docs/wmenu-demo.webp)
 
-Keyboard-driven app launcher and hotkey daemon for Windows. Modeled after dmenu: tray-resident, summoned by a global hotkey, fuzzy-matches Start Menu apps, launches via Enter.
+Keyboard-driven app launcher for Windows. Modeled after dmenu: tray-resident, summoned by a global hotkey, fuzzy-matches Start Menu apps, launches via Enter.
 
 ## Build
 
@@ -25,7 +25,7 @@ The build needs `mingw-w64` (Debian/Ubuntu: `sudo apt install mingw-w64`).
 
 Run `wmenu.exe`. A tray icon appears; press the global hotkey (default `Alt+Space`) to open the launcher, type to filter, `↑/↓` to navigate, `Enter` to launch, `Esc` to dismiss. The window also dismisses on focus loss.
 
-Open the settings page from inside the launcher with `Ctrl+,` or via the tray menu's `Settings` entry. Settings lets you switch theme (Paper / Stone / Sage / Clay / Ink), rebind the launcher hotkey, and manage custom hotkey bindings that fire shell commands (e.g. `Alt+Enter` → WezTerm). The entire page is keyboard-driven: Tab navigates, `Ctrl+N` adds a binding row, `Ctrl+S` applies and saves.
+Open the settings page from inside the launcher with `Ctrl+,` or via the tray menu's `Settings` entry. Settings lets you switch theme (Paper / Stone / Sage / Clay / Ink), rebind the launcher hotkey, and toggle launch-at-Windows-login. The entire page is keyboard-driven: Tab navigates, Space toggles, Enter activates.
 
 ## State
 
