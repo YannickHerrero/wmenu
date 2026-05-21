@@ -39,7 +39,23 @@ pub struct Config {
     pub hotkey: HotkeySpec,
     pub scan_interval_minutes: u64,
     pub extra_dirs: Vec<PathBuf>,
+    #[serde(default = "default_bindings")]
     pub bindings: Vec<HotkeyBinding>,
+}
+
+fn default_bindings() -> Vec<HotkeyBinding> {
+    vec![
+        HotkeyBinding {
+            label: "WezTerm".to_string(),
+            spec: "Alt+Enter".to_string(),
+            command: "\"C:/Program Files/WezTerm/wezterm-gui.exe\"".to_string(),
+        },
+        HotkeyBinding {
+            label: "Firefox".to_string(),
+            spec: "Alt+B".to_string(),
+            command: "firefox".to_string(),
+        },
+    ]
 }
 
 impl Default for Config {
@@ -49,18 +65,7 @@ impl Default for Config {
             hotkey: HotkeySpec::default(),
             scan_interval_minutes: 5,
             extra_dirs: Vec::new(),
-            bindings: vec![
-                HotkeyBinding {
-                    label: "WezTerm".to_string(),
-                    spec: "Alt+Enter".to_string(),
-                    command: "\"C:/Program Files/WezTerm/wezterm-gui.exe\"".to_string(),
-                },
-                HotkeyBinding {
-                    label: "Firefox".to_string(),
-                    spec: "Alt+B".to_string(),
-                    command: "firefox".to_string(),
-                },
-            ],
+            bindings: default_bindings(),
         }
     }
 }
