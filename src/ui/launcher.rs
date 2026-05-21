@@ -23,6 +23,8 @@ pub fn show(
     mru: &Mru,
     request_focus: bool,
 ) -> Action {
+    let prev_selected = *selected;
+
     let ranked = matcher.search(query, entries, mru);
     if ranked.is_empty() {
         *selected = 0;
@@ -63,6 +65,8 @@ pub fn show(
         }
     });
 
+    let scroll_to_selected = request_focus || *selected != prev_selected;
+
     ui.add(egui::Separator::default().spacing(0.0));
 
     egui::ScrollArea::vertical()
@@ -92,7 +96,7 @@ pub fn show(
                 if clickable.clicked() {
                     action = Action::Launch(entry_idx);
                 }
-                if is_sel && request_focus {
+                if is_sel && scroll_to_selected {
                     clickable.scroll_to_me(None);
                 }
             }
