@@ -1,4 +1,5 @@
 use std::sync::mpsc::{Receiver, channel};
+use std::time::Duration;
 
 use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
@@ -6,6 +7,7 @@ use tray_icon::menu::MenuEvent;
 
 use crate::config::Config;
 use crate::hotkey::Manager as HotkeyMgr;
+use crate::index;
 use crate::index::SharedIndex;
 use crate::launch;
 use crate::matcher::Engine;
@@ -87,6 +89,7 @@ impl App {
     }
 
     fn show(&mut self, ctx: &egui::Context) {
+        self.maybe_rescan();
         let pos = center_position();
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -96,6 +99,17 @@ impl App {
         self.view = View::Launcher;
         self.query.clear();
         self.selected = 0;
+    }
+
+    fn maybe_rescan(&self) {
+        let max_age = Duration::from_secs(self.cfg.scan_interval_minutes * 60);
+        let stale = match self.index.load().scanned_at {
+            None => true,
+            Some(at) => at.elapsed() > max_age,
+        };
+        if stale {
+            index::spawn_scan(self.index.clone(), self.cfg.extra_dirs.clone());
+        }
     }
 
     fn hide(&mut self, ctx: &egui::Context) {
