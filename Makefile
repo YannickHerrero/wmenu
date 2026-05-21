@@ -15,6 +15,8 @@ build:
 	cargo build --release --target $(TARGET)
 
 kill:
+	-cmd.exe /c "taskkill /IM $(BIN) >nul 2>&1"
+	@sleep 0.4
 	-cmd.exe /c "taskkill /F /IM $(BIN) >nul 2>&1"
 
 install: build kill
