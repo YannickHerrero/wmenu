@@ -1,6 +1,7 @@
 TARGET := x86_64-pc-windows-gnu
 BIN := wmenu.exe
 RELEASE_DIR := target/$(TARGET)/release
+BUMP ?= patch
 
 ifndef WIN_USER
 WIN_USER := $(shell cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r\n')
@@ -8,7 +9,7 @@ endif
 DEST_DIR := /mnt/c/Users/$(WIN_USER)/Documents/apps
 DEST := $(DEST_DIR)/$(BIN)
 
-.PHONY: default build install kill clean
+.PHONY: default build install kill clean deploy
 default: install
 
 build:
@@ -27,3 +28,6 @@ install: build kill
 
 clean:
 	cargo clean
+
+deploy:
+	@./scripts/deploy.sh $(BUMP)
