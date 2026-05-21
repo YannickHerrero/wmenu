@@ -67,6 +67,12 @@ pub fn show(
                             action = Action::Back;
                         }
                         ui.colored_label(palette.ink, "Settings");
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.colored_label(
+                                palette.ink_faint,
+                                format!("v{}", env!("CARGO_PKG_VERSION")),
+                            );
+                        });
                     });
                     ui.add_space(8.0);
 
