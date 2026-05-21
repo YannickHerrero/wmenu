@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 
-pub use schema::{Action, Config, ShellKind, Theme};
+pub use schema::{Action, Binding, Config, ShellKind, Theme};
 
 pub fn project_dir() -> Result<PathBuf> {
     let dirs = ProjectDirs::from("", "", "wmenu")
