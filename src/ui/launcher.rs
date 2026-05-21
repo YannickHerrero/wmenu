@@ -1,8 +1,9 @@
-use eframe::egui::{self, Key, Ui};
+use eframe::egui::{self, Frame, Key, Margin, Sense, Ui};
 
 use crate::index::AppEntry;
 use crate::matcher::Engine;
 use crate::mru::Mru;
+use crate::ui::theme::Palette;
 
 const MAX_VISIBLE_RESULTS: usize = 50;
 
@@ -14,6 +15,7 @@ pub enum Action {
 
 pub fn show(
     ui: &mut Ui,
+    palette: &Palette,
     query: &mut String,
     selected: &mut usize,
     entries: &[AppEntry],
@@ -30,13 +32,22 @@ pub fn show(
 
     let mut action = Action::None;
 
-    let response = ui.add(
-        egui::TextEdit::singleline(query)
-            .desired_width(f32::INFINITY)
-            .hint_text("Search…"),
-    );
+    let search_frame = egui::Frame::default()
+        .fill(palette.muted)
+        .inner_margin(Margin::symmetric(8, 6));
+    let search_response = search_frame
+        .show(ui, |ui| {
+            ui.add(
+                egui::TextEdit::singleline(query)
+                    .desired_width(f32::INFINITY)
+                    .text_color(palette.ink)
+                    .hint_text("Search…")
+                    .frame(Frame::NONE),
+            )
+        })
+        .inner;
     if request_focus {
-        response.request_focus();
+        search_response.request_focus();
     }
 
     let visible = ranked.len().min(MAX_VISIBLE_RESULTS);
@@ -52,7 +63,7 @@ pub fn show(
         }
     });
 
-    ui.separator();
+    ui.add(egui::Separator::default().spacing(0.0));
 
     egui::ScrollArea::vertical()
         .auto_shrink(false)
@@ -60,12 +71,29 @@ pub fn show(
             for (display_idx, &entry_idx) in ranked.iter().enumerate().take(MAX_VISIBLE_RESULTS) {
                 let entry = &entries[entry_idx];
                 let is_sel = display_idx == *selected;
-                let row = ui.add(egui::SelectableLabel::new(is_sel, &entry.name));
-                if row.clicked() {
+                let bg = if is_sel {
+                    palette.accent
+                } else {
+                    palette.paper
+                };
+                let fg = if is_sel { palette.paper } else { palette.ink };
+                let row = egui::Frame::default()
+                    .fill(bg)
+                    .inner_margin(Margin::symmetric(8, 4))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.colored_label(fg, &entry.name);
+                    });
+                let clickable = ui.interact(
+                    row.response.rect,
+                    row.response.id.with(entry_idx),
+                    Sense::click(),
+                );
+                if clickable.clicked() {
                     action = Action::Launch(entry_idx);
                 }
                 if is_sel && request_focus {
-                    row.scroll_to_me(None);
+                    clickable.scroll_to_me(None);
                 }
             }
         });

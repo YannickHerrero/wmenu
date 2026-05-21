@@ -11,7 +11,7 @@ use crate::launch;
 use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::tray::Tray;
-use crate::ui::launcher;
+use crate::ui::{launcher, theme};
 
 pub const WINDOW_W: f32 = 640.0;
 pub const WINDOW_H: f32 = 400.0;
@@ -145,8 +145,10 @@ impl eframe::App for App {
         match self.view {
             View::Launcher => {
                 let snapshot = self.index.load();
+                let palette = theme::palette(self.cfg.theme);
                 let action = launcher::show(
                     ui,
+                    &palette,
                     &mut self.query,
                     &mut self.selected,
                     &snapshot.entries,
