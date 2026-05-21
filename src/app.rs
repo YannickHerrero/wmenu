@@ -5,8 +5,9 @@ use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use tray_icon::menu::MenuEvent;
 
-use crate::config::Config;
-use crate::hotkey::Manager as HotkeyMgr;
+use crate::command;
+use crate::config::{Config, HotkeyBinding};
+use crate::hotkey::{BindingError, Manager as HotkeyMgr};
 use crate::index;
 use crate::index::SharedIndex;
 use crate::launch;
@@ -41,6 +42,10 @@ pub struct App {
     pub hotkey_input: String,
     pub hotkey_error: Option<String>,
     pub window_styled: bool,
+    pub binding_drafts: Vec<HotkeyBinding>,
+    pub binding_errors: Vec<BindingError>,
+    pub settings_focus_request: bool,
+    pub focus_new_binding: Option<usize>,
 }
 
 impl App {
@@ -49,7 +54,7 @@ impl App {
         index: SharedIndex,
         mru: Mru,
         tray: Tray,
-        hotkey: HotkeyMgr,
+        mut hotkey: HotkeyMgr,
         ctx: egui::Context,
     ) -> Self {
         let (hotkey_tx, hotkey_rx) = channel();
@@ -69,6 +74,8 @@ impl App {
         theme::apply(&ctx, cfg.theme);
 
         let hotkey_input = cfg.hotkey.0.clone();
+        let binding_drafts = cfg.bindings.clone();
+        let binding_errors = hotkey.set_bindings(&binding_drafts);
         Self {
             cfg,
             index,
@@ -87,6 +94,10 @@ impl App {
             hotkey_input,
             hotkey_error: None,
             window_styled: false,
+            binding_drafts,
+            binding_errors,
+            settings_focus_request: false,
+            focus_new_binding: None,
         }
     }
 
@@ -129,6 +140,7 @@ impl App {
             } else if event.id == self.tray.settings_id {
                 self.show(ctx);
                 self.view = View::Settings;
+                self.settings_focus_request = true;
             } else if event.id == self.tray.quit_id {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
@@ -154,6 +166,10 @@ impl App {
                         self.view = View::Launcher;
                         self.focus_request = true;
                     }
+                }
+            } else if let Some(cmd) = self.hotkey.command_for(id) {
+                if let Err(e) = command::run(cmd) {
+                    tracing::warn!("run binding '{cmd}': {e}");
                 }
             }
         }
@@ -222,6 +238,7 @@ impl eframe::App for App {
                     }
                     launcher::Action::OpenSettings => {
                         self.view = View::Settings;
+                        self.settings_focus_request = true;
                     }
                     launcher::Action::Hide => {
                         self.hide(ui.ctx());
@@ -230,12 +247,19 @@ impl eframe::App for App {
             }
             View::Settings => {
                 let palette = theme::palette(self.cfg.theme);
+                let initial_focus = self.settings_focus_request;
+                self.settings_focus_request = false;
+                let focus_binding = self.focus_new_binding.take();
                 let action = settings::show(
                     ui,
                     &palette,
                     &mut self.cfg.theme,
                     &mut self.hotkey_input,
                     self.hotkey_error.as_deref(),
+                    &mut self.binding_drafts,
+                    &self.binding_errors,
+                    initial_focus,
+                    focus_binding,
                 );
                 match action {
                     settings::Action::None => {}
@@ -262,6 +286,22 @@ impl eframe::App for App {
                             self.hotkey_error = Some(format!("{e}"));
                         }
                     },
+                    settings::Action::AddBinding => {
+                        self.binding_drafts.push(HotkeyBinding::default());
+                        self.focus_new_binding = Some(self.binding_drafts.len() - 1);
+                    }
+                    settings::Action::RemoveBinding(i) => {
+                        if i < self.binding_drafts.len() {
+                            self.binding_drafts.remove(i);
+                        }
+                    }
+                    settings::Action::ApplyBindings => {
+                        self.binding_errors = self.hotkey.set_bindings(&self.binding_drafts);
+                        self.cfg.bindings = self.binding_drafts.clone();
+                        if let Err(e) = self.cfg.save() {
+                            tracing::warn!("save config: {e}");
+                        }
+                    }
                 }
             }
         }
