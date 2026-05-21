@@ -9,9 +9,14 @@ pub fn run(cmd: &str) -> Result<()> {
     // `cmd /c start "" <cmd>` routes through ShellExecute, which uses the
     // "App Paths" registry (so bare names like `firefox` resolve) and
     // handles .lnk activation. `cmd /c <cmd>` would skip both.
+    //
+    // raw_arg is required: Rust's normal arg quoting uses \" to escape
+    // embedded quotes (MS C runtime style), but cmd.exe's parser doesn't
+    // understand that and sees the backslashes literally.
     let line = format!("start \"\" {cmd}");
     std::process::Command::new("cmd")
-        .args(["/c", &line])
+        .arg("/c")
+        .raw_arg(&line)
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .with_context(|| format!("spawn `cmd /c {line}`"))?;
