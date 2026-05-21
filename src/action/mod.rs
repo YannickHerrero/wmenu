@@ -7,7 +7,6 @@ use anyhow::Result;
 
 use crate::config::Action;
 
-#[allow(dead_code)]
 pub fn run(action: &Action) -> Result<()> {
     match action {
         Action::Launch { command } => launch::run(command),

@@ -5,6 +5,7 @@ use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use tray_icon::menu::MenuEvent;
 
+use crate::action;
 use crate::amphetamine::Amphetamine;
 use crate::autostart;
 use crate::config::Config;
@@ -206,6 +207,13 @@ impl App {
                         self.focus_request = true;
                     }
                     View::Omakase => self.omakase_back_or_hide(ctx),
+                }
+            } else if let Some(idx) = self.hotkey.binding_index_for(id)
+                && let Some(binding) = self.cfg.bindings.get(idx)
+            {
+                tracing::info!("binding fired: '{}' -> {:?}", binding.label, binding.action);
+                if let Err(e) = action::run(&binding.action) {
+                    tracing::warn!("binding action failed: {e}");
                 }
             }
         }

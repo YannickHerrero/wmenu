@@ -7,7 +7,6 @@ use tracing::warn;
 
 use crate::config::Binding;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct BindingError {
     pub index: usize,
@@ -112,7 +111,6 @@ impl Manager {
         ]
     }
 
-    #[allow(dead_code)]
     pub fn set_bindings(&mut self, list: &[Binding]) -> Vec<BindingError> {
         for (_, reg) in self.bindings.drain() {
             let _ = self.manager.unregister(reg.hotkey);
@@ -184,7 +182,6 @@ impl Manager {
         errors
     }
 
-    #[allow(dead_code)]
     pub fn binding_index_for(&self, id: u32) -> Option<usize> {
         self.bindings.get(&id).map(|b| b.binding_index)
     }

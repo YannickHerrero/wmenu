@@ -37,6 +37,10 @@ fn main() -> Result<()> {
     if let Err(e) = hotkey_mgr.set(&cfg.launcher.hotkey.0) {
         tracing::warn!("default hotkey {} failed: {e}", cfg.launcher.hotkey.0);
     }
+    let binding_errors = hotkey_mgr.set_bindings(&cfg.bindings);
+    for err in &binding_errors {
+        tracing::warn!("binding #{}: {}", err.index, err.message);
+    }
 
     let viewport = egui::ViewportBuilder::default()
         .with_title("wmenu")
