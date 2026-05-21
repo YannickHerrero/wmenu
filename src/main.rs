@@ -11,12 +11,18 @@ mod launch;
 mod logging;
 mod matcher;
 mod mru;
+mod single_instance;
 mod tray;
 mod ui;
 
 fn main() -> Result<()> {
     let _log_guard = logging::init()?;
     tracing::info!("wmenu starting");
+
+    if let Err(e) = single_instance::ensure() {
+        tracing::warn!("{e}");
+        return Ok(());
+    }
 
     let cfg = config::Config::load()?;
     let shared_index = index::new_shared();
