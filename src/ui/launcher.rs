@@ -52,6 +52,9 @@ pub fn show(
     if request_focus {
         search_response.request_focus();
     }
+    if search_response.changed() {
+        *selected = 0;
+    }
 
     let visible = ranked.len().min(MAX_VISIBLE_RESULTS);
     ui.input(|i| {
