@@ -176,6 +176,11 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         if !self.window_styled {
             apply_window_style(frame);
+            // Force-hide on the first frame: ViewportBuilder::with_visible(false)
+            // sometimes leaks a brief flash on Windows, and the SetWindowLongPtrW
+            // call in apply_window_style can trigger an unwanted redraw.
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Visible(false));
             self.window_styled = true;
         }
 
