@@ -3,6 +3,7 @@
 use anyhow::Result;
 use eframe::egui;
 
+mod action;
 mod amphetamine;
 mod app;
 mod autostart;
