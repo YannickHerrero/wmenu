@@ -1,3 +1,5 @@
+pub mod general;
+
 use eframe::egui;
 
 use crate::app::App;
@@ -55,7 +57,7 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
         });
 
         match app.settings_page {
-            Page::General => stub(ui, "General"),
+            Page::General => general::show(app, ui),
             Page::Launcher => stub(ui, "Launcher"),
             Page::Bindings => stub(ui, "Bindings"),
             Page::Amphetamine => stub(ui, "Amphetamine"),
