@@ -15,9 +15,9 @@ build:
 	cargo build --release --target $(TARGET)
 
 kill:
-	-cmd.exe /c "taskkill /IM $(BIN) >nul 2>&1"
+	@cmd.exe /c "taskkill /IM $(BIN) >nul 2>&1" 2>/dev/null || true
 	@sleep 0.4
-	-cmd.exe /c "taskkill /F /IM $(BIN) >nul 2>&1"
+	@cmd.exe /c "taskkill /F /IM $(BIN) >nul 2>&1" 2>/dev/null || true
 
 install: build kill
 	@test -n "$(WIN_USER)" || { echo "ERROR: WIN_USER is empty (cmd.exe detection failed). Run with WIN_USER=<name>."; exit 1; }
