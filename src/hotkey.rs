@@ -123,6 +123,14 @@ impl Manager {
                     command: binding.command.clone(),
                 },
             );
+            tracing::info!("registered binding {} -> {}", trimmed, binding.command);
+        }
+        if !errors.is_empty() {
+            tracing::warn!(
+                "{} of {} binding(s) failed to register",
+                errors.len(),
+                list.len()
+            );
         }
         errors
     }

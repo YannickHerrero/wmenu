@@ -6,11 +6,16 @@ pub fn run(cmd: &str) -> Result<()> {
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+    // `cmd /c start "" <cmd>` routes through ShellExecute, which uses the
+    // "App Paths" registry (so bare names like `firefox` resolve) and
+    // handles .lnk activation. `cmd /c <cmd>` would skip both.
+    let line = format!("start \"\" {cmd}");
     std::process::Command::new("cmd")
-        .args(["/c", cmd])
+        .args(["/c", &line])
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
-        .with_context(|| format!("spawn `cmd /c {cmd}`"))?;
+        .with_context(|| format!("spawn `cmd /c {line}`"))?;
+    tracing::debug!("ran binding command: {cmd}");
     Ok(())
 }
 

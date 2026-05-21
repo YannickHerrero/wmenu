@@ -168,7 +168,9 @@ impl App {
                     }
                 }
             } else if let Some(cmd) = self.hotkey.command_for(id) {
-                if let Err(e) = command::run(cmd) {
+                let cmd = cmd.to_string();
+                tracing::info!("binding fired (id={id}): {cmd}");
+                if let Err(e) = command::run(&cmd) {
                     tracing::warn!("run binding '{cmd}': {e}");
                 }
             }
