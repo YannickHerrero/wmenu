@@ -18,7 +18,7 @@ use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::omakase;
 use crate::tray::Tray;
-use crate::ui::{launcher, omakase as ui_omakase, settings, theme};
+use crate::ui::{launcher, omakase as ui_omakase, settings, settings_window, theme};
 
 pub const WINDOW_W: f32 = 640.0;
 pub const WINDOW_H: f32 = 400.0;
@@ -59,6 +59,9 @@ pub struct App {
     pub cfg_rx: Receiver<Config>,
     _watcher: Option<RecommendedWatcher>,
     pub settings_open: bool,
+    pub settings_page: settings_window::Page,
+    pub settings_dirty: bool,
+    pub settings_status: Option<String>,
 }
 
 impl App {
@@ -135,10 +138,13 @@ impl App {
             cfg_rx,
             _watcher: watcher,
             settings_open: false,
+            settings_page: settings_window::Page::default(),
+            settings_dirty: false,
+            settings_status: None,
         }
     }
 
-    fn apply_reloaded(&mut self, ctx: &egui::Context) {
+    pub(crate) fn apply_reloaded(&mut self, ctx: &egui::Context) {
         theme::apply(ctx, self.cfg.theme);
         if let Err(e) = self.hotkey.set(&self.cfg.launcher.hotkey.0) {
             tracing::warn!("re-apply launcher hotkey: {e}");
@@ -181,11 +187,7 @@ impl App {
                 .with_inner_size([760.0, 560.0])
                 .with_min_inner_size([520.0, 380.0]),
             |child_ctx, _class| {
-                #[allow(deprecated)]
-                egui::CentralPanel::default().show(child_ctx, |ui| {
-                    ui.heading("wmenu");
-                    ui.label("Settings window (under construction).");
-                });
+                settings_window::render(self, child_ctx);
                 child_ctx.input(|i| i.viewport().close_requested())
             },
         );
