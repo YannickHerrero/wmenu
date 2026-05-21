@@ -9,25 +9,27 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     ui.add_space(8.0);
 
     section(ui, "Hotkeys", |ui| {
-        hotkey_row(
+        if let Some(a) = hotkey_row(
             ui,
             "Launcher",
             &mut app.hotkey_input,
             app.hotkey_error.as_deref(),
             "e.g. Alt+Space, Ctrl+Alt+Space",
             || ApplyHotkey::Launcher,
-        )
-        .map(|a| pending_apply(app, a));
+        ) {
+            pending_apply(app, a);
+        }
         ui.add_space(6.0);
-        hotkey_row(
+        if let Some(a) = hotkey_row(
             ui,
             "Omakase",
             &mut app.omakase_hotkey_input,
             app.omakase_hotkey_error.as_deref(),
             "e.g. Alt+Super+Space (Super = Win key)",
             || ApplyHotkey::Omakase,
-        )
-        .map(|a| pending_apply(app, a));
+        ) {
+            pending_apply(app, a);
+        }
     });
 
     ui.add_space(12.0);
