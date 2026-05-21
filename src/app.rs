@@ -243,19 +243,49 @@ impl eframe::App for App {
 }
 
 #[cfg(windows)]
-fn primary_monitor_size() -> (f32, f32) {
-    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
-    let w = unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32;
-    let h = unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32;
-    (w.max(WINDOW_W), h.max(WINDOW_H))
+fn active_monitor_rect() -> (f32, f32, f32, f32) {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, HMONITOR, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetCursorPos, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
+    };
+
+    let mut pt = POINT { x: 0, y: 0 };
+    unsafe {
+        if GetCursorPos(&mut pt).is_err() {
+            let w = GetSystemMetrics(SM_CXSCREEN) as f32;
+            let h = GetSystemMetrics(SM_CYSCREEN) as f32;
+            return (0.0, 0.0, w, h);
+        }
+    }
+    let monitor: HMONITOR = unsafe { MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST) };
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    let ok = unsafe { GetMonitorInfoW(monitor, &mut info).as_bool() };
+    if !ok {
+        let w = unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32;
+        let h = unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32;
+        return (0.0, 0.0, w, h);
+    }
+    let r = info.rcWork;
+    (
+        r.left as f32,
+        r.top as f32,
+        (r.right - r.left) as f32,
+        (r.bottom - r.top) as f32,
+    )
 }
 
 #[cfg(not(windows))]
-fn primary_monitor_size() -> (f32, f32) {
-    (1920.0, 1080.0)
+fn active_monitor_rect() -> (f32, f32, f32, f32) {
+    (0.0, 0.0, 1920.0, 1080.0)
 }
 
 fn center_position() -> egui::Pos2 {
-    let (sw, sh) = primary_monitor_size();
-    egui::pos2((sw - WINDOW_W) / 2.0, (sh - WINDOW_H) / 2.0)
+    let (x, y, w, h) = active_monitor_rect();
+    egui::pos2(x + (w - WINDOW_W) / 2.0, y + (h - WINDOW_H) / 2.0)
 }
