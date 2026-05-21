@@ -1,3 +1,5 @@
+pub mod about;
+pub mod amphetamine;
 pub mod bindings;
 pub mod general;
 pub mod launcher;
@@ -63,8 +65,8 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
             Page::General => general::show(app, ui),
             Page::Launcher => launcher::show(app, ui),
             Page::Bindings => bindings::show(app, ui),
-            Page::Amphetamine => stub(ui, "Amphetamine"),
-            Page::About => stub(ui, "About"),
+            Page::Amphetamine => amphetamine::show(app, ui),
+            Page::About => about::show(app, ui),
         }
         if config_signature(&app.cfg) != before {
             app.settings_dirty = true;
@@ -77,12 +79,6 @@ fn nav_button(ui: &mut egui::Ui, current: &mut Page, target: Page, label: &str) 
     if ui.selectable_label(selected, label).clicked() {
         *current = target;
     }
-}
-
-fn stub(ui: &mut egui::Ui, name: &str) {
-    ui.heading(name);
-    ui.add_space(8.0);
-    ui.label("(under construction)");
 }
 
 fn config_signature(cfg: &crate::config::Config) -> Option<String> {
