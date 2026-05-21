@@ -58,6 +58,7 @@ pub struct App {
     pub omakase_hotkey_error: Option<String>,
     pub cfg_rx: Receiver<Config>,
     _watcher: Option<RecommendedWatcher>,
+    pub settings_open: bool,
 }
 
 impl App {
@@ -133,6 +134,7 @@ impl App {
             omakase_hotkey_error: None,
             cfg_rx,
             _watcher: watcher,
+            settings_open: false,
         }
     }
 
@@ -165,6 +167,30 @@ impl App {
         while let Ok(cfg) = self.cfg_rx.try_recv() {
             self.cfg = cfg;
             self.apply_reloaded(ctx);
+        }
+    }
+
+    fn render_settings_viewport(&mut self, ctx: &egui::Context) {
+        if !self.settings_open {
+            return;
+        }
+        let close_requested = ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of("wmenu_settings"),
+            egui::ViewportBuilder::default()
+                .with_title("wmenu — settings")
+                .with_inner_size([760.0, 560.0])
+                .with_min_inner_size([520.0, 380.0]),
+            |child_ctx, _class| {
+                #[allow(deprecated)]
+                egui::CentralPanel::default().show(child_ctx, |ui| {
+                    ui.heading("wmenu");
+                    ui.label("Settings window (under construction).");
+                });
+                child_ctx.input(|i| i.viewport().close_requested())
+            },
+        );
+        if close_requested {
+            self.settings_open = false;
         }
     }
 
@@ -218,9 +244,7 @@ impl App {
             if event.id == self.tray.show_id {
                 self.show(ctx);
             } else if event.id == self.tray.settings_id {
-                self.show(ctx);
-                self.view = View::Settings;
-                self.settings_focus_request = true;
+                self.settings_open = true;
             } else if event.id == self.tray.quit_id {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
@@ -302,6 +326,8 @@ impl eframe::App for App {
         self.poll_tray(ui.ctx());
         self.poll_hotkey(ui.ctx());
         self.poll_cfg(ui.ctx());
+
+        self.render_settings_viewport(ui.ctx());
 
         if self.visible {
             let focused = ui.ctx().input(|i| i.focused);
