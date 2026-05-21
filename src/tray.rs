@@ -39,11 +39,33 @@ pub fn build() -> Result<Tray> {
 }
 
 fn make_icon() -> Result<Icon> {
-    const SIZE: u32 = 16;
+    const SIZE: u32 = 32;
     const ACCENT: [u8; 4] = [0xB5, 0x59, 0x3A, 0xFF];
-    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
-    for _ in 0..(SIZE * SIZE) {
-        rgba.extend_from_slice(&ACCENT);
+    const PAPER: [u8; 4] = [0xF4, 0xEB, 0xD9, 0xFF];
+    const TRANSPARENT: [u8; 4] = [0, 0, 0, 0];
+
+    let s = SIZE as f32;
+    let cx = (s - 1.0) / 2.0;
+    let cy = (s - 1.0) / 2.0;
+    let outer_r = s * 0.48;
+    let inner_r = s * 0.24;
+
+    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let dx = x as f32 - cx;
+            let dy = y as f32 - cy;
+            let d = (dx * dx + dy * dy).sqrt();
+            let i = ((y * SIZE + x) * 4) as usize;
+            let pixel = if d <= inner_r {
+                PAPER
+            } else if d <= outer_r {
+                ACCENT
+            } else {
+                TRANSPARENT
+            };
+            rgba[i..i + 4].copy_from_slice(&pixel);
+        }
     }
     Ok(Icon::from_rgba(rgba, SIZE, SIZE)?)
 }
