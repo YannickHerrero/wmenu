@@ -1,7 +1,6 @@
 TARGET := x86_64-pc-windows-gnu
 BIN := wmenu.exe
 RELEASE_DIR := target/$(TARGET)/release
-BUMP ?= patch
 
 ifndef WIN_USER
 WIN_USER := $(shell cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r\n')
