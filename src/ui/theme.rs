@@ -9,18 +9,14 @@ pub struct Palette {
     pub ink_soft: Color32,
     pub ink_faint: Color32,
     pub muted: Color32,
-    #[allow(dead_code)] // used by upcoming pill / inline_error components
     pub success: Color32,
-    #[allow(dead_code)]
     pub warning: Color32,
-    #[allow(dead_code)]
     pub error: Color32,
 }
 
 /// Spacing, radius, and font-size tokens for the settings UI. Centralised so
 /// pages stop sprinkling bare `add_space(8.0)` calls and stay visually
 /// consistent across themes.
-#[allow(dead_code)] // fields consumed by upcoming settings-components migration
 #[derive(Clone, Copy)]
 pub struct Tokens {
     pub space_xs: f32,
@@ -100,7 +96,6 @@ pub fn palette(theme: Theme) -> Palette {
     }
 }
 
-#[allow(dead_code)] // wired up by upcoming settings-components migration
 pub fn tokens() -> Tokens {
     Tokens {
         space_xs: 4.0,

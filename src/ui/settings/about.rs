@@ -5,7 +5,6 @@ use crate::ui::settings::components as c;
 use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
 
-#[allow(dead_code)] // consumed by the search-results view in the next commit
 pub const ENTRIES: &[SearchEntry] = &[
     SearchEntry {
         page: Page::About,

@@ -8,7 +8,6 @@ use crate::ui::theme;
 
 /// Static jump-to-page entry. Individual user bindings are matched at search
 /// time by reading `app.cfg.bindings` directly, since they're dynamic.
-#[allow(dead_code)] // consumed by the search-results view in the next commit
 pub const ENTRIES: &[SearchEntry] = &[SearchEntry {
     page: Page::Bindings,
     section: "Bindings",

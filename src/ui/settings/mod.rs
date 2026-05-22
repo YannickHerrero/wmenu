@@ -24,7 +24,6 @@ pub enum Page {
 
 /// A single searchable setting. Pages export a static slice of these so the
 /// top-bar search input can offer "jump to this field" results.
-#[allow(dead_code)] // consumed by the search-results view in the next commit
 #[derive(Debug, Clone, Copy)]
 pub struct SearchEntry {
     pub page: Page,

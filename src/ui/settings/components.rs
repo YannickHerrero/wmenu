@@ -5,21 +5,20 @@
 //! compose itself from `page_header`, `section`, `field_row`, and the small
 //! status/error widgets below.
 
-#![allow(dead_code)] // wired in over the next commits
-
 use eframe::egui::{
-    self, Align, Align2, Color32, CornerRadius, FontId, FontSelection, Frame, Layout, Margin,
-    Response, RichText, Sense, Stroke, StrokeKind, Ui, Vec2,
+    self, Align2, Color32, CornerRadius, FontId, Frame, Margin, Response, RichText, Sense,
+    Stroke, Ui, Vec2,
 };
 
 use crate::config::Theme;
-use crate::ui::theme::{self, Tokens};
+use crate::ui::theme;
 
 /// What kind of pill / inline error to render.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Neutral,
     Success,
+    #[allow(dead_code)] // reserved for upcoming warning surfaces
     Warning,
     Error,
 }
@@ -160,12 +159,6 @@ pub fn pill(ui: &mut Ui, theme: Theme, kind: Kind, text: &str) -> Response {
         .response
 }
 
-/// Right-aligned trailing-control helper for a [`field_row`] body that should
-/// hug the right side of the page.
-pub fn trailing(ui: &mut Ui, body: impl FnOnce(&mut Ui)) {
-    ui.with_layout(Layout::right_to_left(Align::Center), body);
-}
-
 /// Thin horizontal divider used to underline section/page headers.
 pub fn hairline(ui: &mut Ui, color: Color32) {
     let rect = ui.available_rect_before_wrap();
@@ -189,17 +182,6 @@ pub fn card<R>(ui: &mut Ui, theme: Theme, body: impl FnOnce(&mut Ui) -> R) -> R 
         .inner_margin(Margin::same(t.space_md as i8))
         .show(ui, body)
         .inner
-}
-
-/// Helper to draw a focus ring around the previously-allocated rect.
-pub fn focus_ring(ui: &Ui, rect: egui::Rect, accent: Color32) {
-    let t = theme::tokens();
-    ui.painter().rect_stroke(
-        rect,
-        CornerRadius::same(t.radius_sm as u8),
-        Stroke::new(2.0, accent),
-        StrokeKind::Outside,
-    );
 }
 
 fn status_colors(theme: Theme, kind: Kind) -> (Color32, Color32) {
@@ -227,12 +209,6 @@ fn tint(base: Color32, accent: Color32, amount: f32) -> Color32 {
     )
 }
 
-/// Tokens accessor exposed here to avoid every page reaching into
-/// `crate::ui::theme` directly.
-pub fn t() -> Tokens {
-    theme::tokens()
-}
-
 /// Build the egui::Id a focusable settings field should use. Search results
 /// can request focus on the matching widget by storing the same string in
 /// `App.focus_target`.
@@ -253,17 +229,3 @@ pub fn consume_focus_target(
     }
 }
 
-/// Helper: convert a plain string into a body-sized rich text in the page's
-/// default text colour. Lets pages write `body("hello")` instead of repeating
-/// the size/colour boilerplate everywhere.
-pub fn body(theme: Theme, text: impl Into<String>) -> RichText {
-    let t = theme::tokens();
-    RichText::new(text.into())
-        .size(t.font_body)
-        .color(theme::palette(theme).ink)
-}
-
-/// FontSelection used by inputs to ensure the font_body size is applied.
-pub fn input_font() -> FontSelection {
-    FontSelection::FontId(FontId::proportional(theme::tokens().font_body))
-}
