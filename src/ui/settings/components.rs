@@ -355,13 +355,42 @@ pub fn app_picker(
         .ctx()
         .memory(|m| m.data.get_temp::<PickerState>(id).unwrap_or_default());
 
+    // Keyboard navigation runs BEFORE the TextEdit so we can consume_key
+    // before egui hands the events to the text field. We only intercept while
+    // the picker is open (i.e. the input had focus on the previous frame).
+    let mut accept = false;
+    let mut escape = false;
+    if state.open {
+        ui.ctx().input_mut(|i| {
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+                state.selected = state.selected.saturating_add(1);
+            }
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+                state.selected = state.selected.saturating_sub(1);
+            }
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
+            {
+                accept = true;
+            }
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+                escape = true;
+            }
+        });
+    }
+
     let response = ui.add(
         TextEdit::singleline(buf)
             .desired_width(f32::INFINITY)
             .id(id.with("input")),
     );
 
-    state.open = response.has_focus();
+    if escape {
+        ui.ctx().memory_mut(|m| m.surrender_focus(response.id));
+        state.open = false;
+    } else {
+        state.open = response.has_focus();
+    }
 
     if state.open {
         let snapshot = ctx.index.load();
@@ -372,55 +401,69 @@ pub fn app_picker(
                 state.selected = visible - 1;
             }
 
-            let input_rect = response.rect;
-            let area_id = id.with("dropdown");
-            egui::Area::new(area_id)
-                .order(egui::Order::Foreground)
-                .fixed_pos(egui::pos2(input_rect.left(), input_rect.bottom() + t.space_xs))
-                .show(ui.ctx(), |ui| {
-                    Frame::new()
-                        .fill(p.paper)
-                        .stroke(Stroke::new(1.0, p.ink_faint))
-                        .corner_radius(CornerRadius::same(t.radius_sm as u8))
-                        .inner_margin(Margin::same(t.space_xs as i8))
-                        .show(ui, |ui| {
-                            ui.set_width(input_rect.width());
-                            for (display_idx, &entry_idx) in
-                                ranked.iter().enumerate().take(PICKER_MAX_RESULTS)
-                            {
-                                let entry = &snapshot.entries[entry_idx];
-                                let is_sel = display_idx == state.selected;
-                                let bg = if is_sel { p.accent } else { p.paper };
-                                let fg = if is_sel { p.paper } else { p.ink };
-                                let row = Frame::new()
-                                    .fill(bg)
-                                    .inner_margin(Margin::symmetric(
-                                        t.space_sm as i8,
-                                        t.space_xs as i8,
-                                    ))
-                                    .corner_radius(CornerRadius::same(2))
-                                    .show(ui, |ui| {
-                                        ui.set_width(ui.available_width());
-                                        ui.label(
-                                            RichText::new(&entry.name)
-                                                .size(t.font_body)
-                                                .color(fg),
-                                        );
-                                    });
-                                let click = ui.interact(
-                                    row.response.rect,
-                                    area_id.with(entry_idx),
-                                    Sense::click(),
-                                );
-                                if click.hovered() {
-                                    state.selected = display_idx;
+            if accept {
+                let entry = &snapshot.entries[ranked[state.selected]];
+                *buf = entry.path.to_string_lossy().into_owned();
+                state.open = false;
+                ui.ctx().memory_mut(|m| m.surrender_focus(response.id));
+            } else {
+                let input_rect = response.rect;
+                let area_id = id.with("dropdown");
+                egui::Area::new(area_id)
+                    .order(egui::Order::Foreground)
+                    .fixed_pos(egui::pos2(
+                        input_rect.left(),
+                        input_rect.bottom() + t.space_xs,
+                    ))
+                    .show(ui.ctx(), |ui| {
+                        Frame::new()
+                            .fill(p.paper)
+                            .stroke(Stroke::new(1.0, p.ink_faint))
+                            .corner_radius(CornerRadius::same(t.radius_sm as u8))
+                            .inner_margin(Margin::same(t.space_xs as i8))
+                            .show(ui, |ui| {
+                                ui.set_width(input_rect.width());
+                                for (display_idx, &entry_idx) in
+                                    ranked.iter().enumerate().take(PICKER_MAX_RESULTS)
+                                {
+                                    let entry = &snapshot.entries[entry_idx];
+                                    let is_sel = display_idx == state.selected;
+                                    let bg = if is_sel { p.accent } else { p.paper };
+                                    let fg = if is_sel { p.paper } else { p.ink };
+                                    let row = Frame::new()
+                                        .fill(bg)
+                                        .inner_margin(Margin::symmetric(
+                                            t.space_sm as i8,
+                                            t.space_xs as i8,
+                                        ))
+                                        .corner_radius(CornerRadius::same(2))
+                                        .show(ui, |ui| {
+                                            ui.set_width(ui.available_width());
+                                            ui.label(
+                                                RichText::new(&entry.name)
+                                                    .size(t.font_body)
+                                                    .color(fg),
+                                            );
+                                        });
+                                    let click = ui.interact(
+                                        row.response.rect,
+                                        area_id.with(entry_idx),
+                                        Sense::click(),
+                                    );
+                                    if click.hovered() {
+                                        state.selected = display_idx;
+                                    }
+                                    if click.clicked() {
+                                        *buf = entry.path.to_string_lossy().into_owned();
+                                        state.open = false;
+                                        ui.ctx().memory_mut(|m| {
+                                            m.surrender_focus(response.id)
+                                        });
+                                    }
                                 }
-                                if click.clicked() {
-                                    *buf = entry.path.to_string_lossy().into_owned();
-                                }
-                            }
-                        });
-                });
+                            });
+                    });
+            }
         }
     }
 
