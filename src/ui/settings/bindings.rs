@@ -1,79 +1,137 @@
 use eframe::egui;
 
 use crate::app::App;
-use crate::config::{Action, Binding, ShellKind};
+use crate::config::{Action, Binding, ShellKind, Theme};
+use crate::ui::settings::components as c;
+use crate::ui::theme;
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
-    ui.heading("Bindings");
-    ui.add_space(8.0);
-    ui.label(
-        egui::RichText::new(
-            "Each binding pairs a key combination with an action. Examples: Alt+Enter, Ctrl+Alt+G.",
-        )
-        .small()
-        .weak(),
-    );
-    ui.add_space(8.0);
+    let theme = app.cfg.theme;
+    c::page_frame(ui, theme, |ui| {
+        c::page_header(
+            ui,
+            theme,
+            "Bindings",
+            Some(
+                "Map global key combinations to commands, URLs, scripts, or window focus.",
+            ),
+        );
 
-    let mut remove: Option<usize> = None;
-    let errors = app.binding_errors.clone();
-
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        for (idx, binding) in app.cfg.bindings.iter_mut().enumerate() {
-            ui.push_id(idx, |ui| {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Label");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut binding.label).desired_width(180.0),
-                        );
-                        ui.label("Key");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut binding.key).desired_width(160.0),
-                        );
-                        if ui.button("Remove").clicked() {
-                            remove = Some(idx);
-                        }
+        // Toolbar: + Add binding on the right.
+        ui.horizontal(|ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("+ Add binding").clicked() {
+                    app.cfg.bindings.push(Binding {
+                        label: String::from("New binding"),
+                        key: String::from("Ctrl+Alt+N"),
+                        action: Action::Launch {
+                            command: String::new(),
+                        },
                     });
-                    ui.add_space(4.0);
-                    action_editor(ui, &mut binding.action);
-                    for err in errors.iter().filter(|e| e.index == idx) {
-                        ui.add_space(4.0);
-                        ui.label(
-                            egui::RichText::new(format!("⚠ {}", err.message))
-                                .small()
-                                .color(egui::Color32::from_rgb(0xC0, 0x39, 0x2B)),
-                        );
-                    }
-                });
+                    app.settings_dirty = true;
+                }
             });
-            ui.add_space(6.0);
-        }
-    });
+        });
+        ui.add_space(theme::tokens().space_sm);
 
-    if let Some(idx) = remove {
-        app.cfg.bindings.remove(idx);
-        app.settings_dirty = true;
-    }
+        let mut remove: Option<usize> = None;
+        let errors = app.binding_errors.clone();
 
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        if ui.button("+ Add binding").clicked() {
-            app.cfg.bindings.push(Binding {
-                label: String::from("New binding"),
-                key: String::from("Ctrl+Alt+N"),
-                action: Action::Launch {
-                    command: String::new(),
-                },
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                for (idx, binding) in app.cfg.bindings.iter_mut().enumerate() {
+                    ui.push_id(idx, |ui| {
+                        c::card(ui, theme, |ui| {
+                            binding_header(ui, theme, binding, &mut remove, idx);
+                            ui.add_space(theme::tokens().space_sm);
+                            action_editor(ui, theme, &mut binding.action);
+                            for err in errors.iter().filter(|e| e.index == idx) {
+                                ui.add_space(theme::tokens().space_xs);
+                                c::inline_error(ui, theme, &err.message);
+                            }
+                        });
+                    });
+                    ui.add_space(theme::tokens().space_sm);
+                }
             });
+
+        if let Some(idx) = remove {
+            app.cfg.bindings.remove(idx);
             app.settings_dirty = true;
         }
     });
 }
 
-fn action_editor(ui: &mut egui::Ui, action: &mut Action) {
+fn binding_header(
+    ui: &mut egui::Ui,
+    theme: Theme,
+    binding: &mut Binding,
+    remove: &mut Option<usize>,
+    idx: usize,
+) {
+    let t = theme::tokens();
+    let p = theme::palette(theme);
     ui.horizontal(|ui| {
-        ui.label("Action");
+        // Label spans the left half so long binding names stay readable.
+        let avail = ui.available_width();
+        let remove_w = 80.0;
+        let key_w = 160.0;
+        let label_w = (avail - key_w - remove_w - 2.0 * t.space_sm).max(120.0);
+
+        ui.vertical(|ui| {
+            ui.label(
+                egui::RichText::new("Label")
+                    .small()
+                    .color(p.ink_soft),
+            );
+            ui.add_sized(
+                [label_w, 24.0],
+                egui::TextEdit::singleline(&mut binding.label),
+            );
+        });
+
+        ui.add_space(t.space_sm);
+
+        ui.vertical(|ui| {
+            ui.label(
+                egui::RichText::new("Key combo")
+                    .small()
+                    .color(p.ink_soft),
+            );
+            ui.add_sized(
+                [key_w, 24.0],
+                egui::TextEdit::singleline(&mut binding.key),
+            );
+        });
+
+        ui.add_space(t.space_sm);
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+            // Match the input row height by padding above the button.
+            ui.vertical(|ui| {
+                ui.add_space(t.font_body + t.space_xs);
+                if ui.add_sized([remove_w, 24.0], egui::Button::new("Remove")).clicked() {
+                    *remove = Some(idx);
+                }
+            });
+        });
+    });
+}
+
+fn action_editor(ui: &mut egui::Ui, theme: Theme, action: &mut Action) {
+    let p = theme::palette(theme);
+    let t = theme::tokens();
+
+    ui.label(
+        egui::RichText::new("ACTION")
+            .small()
+            .color(p.ink_soft)
+            .strong(),
+    );
+    ui.add_space(t.space_xs);
+
+    c::field_row(ui, theme, "Type", |ui| {
         let label = action_type_label(action);
         egui::ComboBox::from_id_salt("action_type")
             .selected_text(label)
@@ -119,20 +177,17 @@ fn action_editor(ui: &mut egui::Ui, action: &mut Action) {
 
     match action {
         Action::Launch { command } => {
-            ui.horizontal(|ui| {
-                ui.label("Command");
+            c::field_row(ui, theme, "Command", |ui| {
                 ui.add(egui::TextEdit::singleline(command).desired_width(f32::INFINITY));
             });
         }
         Action::Url { url } => {
-            ui.horizontal(|ui| {
-                ui.label("URL");
+            c::field_row(ui, theme, "URL", |ui| {
                 ui.add(egui::TextEdit::singleline(url).desired_width(f32::INFINITY));
             });
         }
         Action::Script { shell, script } => {
-            ui.horizontal(|ui| {
-                ui.label("Shell");
+            c::field_row(ui, theme, "Shell", |ui| {
                 egui::ComboBox::from_id_salt("shell_kind")
                     .selected_text(shell_label(*shell))
                     .show_ui(ui, |ui| {
@@ -141,43 +196,46 @@ fn action_editor(ui: &mut egui::Ui, action: &mut Action) {
                         ui.selectable_value(shell, ShellKind::Pwsh, "pwsh (PowerShell 7+)");
                     });
             });
-            ui.label("Script");
-            ui.add(
-                egui::TextEdit::multiline(script)
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(4)
-                    .code_editor(),
-            );
+            c::stacked_field(ui, theme, "Script", |ui| {
+                ui.add(
+                    egui::TextEdit::multiline(script)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(4)
+                        .code_editor(),
+                );
+            });
         }
         Action::FocusOrLaunch {
             exe_path,
             match_basename,
             launch_args,
         } => {
-            ui.horizontal(|ui| {
-                ui.label("Exe path");
+            c::field_row(ui, theme, "Exe path", |ui| {
                 ui.add(egui::TextEdit::singleline(exe_path).desired_width(f32::INFINITY));
             });
-            ui.checkbox(
-                match_basename,
-                "Match by basename (firefox.exe) instead of full path",
-            );
-            ui.horizontal(|ui| {
-                ui.label("Launch args (one per line)");
+            c::field_row(ui, theme, "Match basename only", |ui| {
+                ui.checkbox(match_basename, "");
+                ui.label(
+                    egui::RichText::new("e.g. firefox.exe, instead of the full path")
+                        .small()
+                        .color(p.ink_soft),
+                );
             });
-            let mut joined = launch_args.join("\n");
-            let resp = ui.add(
-                egui::TextEdit::multiline(&mut joined)
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(2),
-            );
-            if resp.changed() {
-                *launch_args = joined
-                    .lines()
-                    .map(|l| l.to_string())
-                    .filter(|l| !l.is_empty())
-                    .collect();
-            }
+            c::stacked_field(ui, theme, "Launch args (one per line)", |ui| {
+                let mut joined = launch_args.join("\n");
+                let resp = ui.add(
+                    egui::TextEdit::multiline(&mut joined)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(2),
+                );
+                if resp.changed() {
+                    *launch_args = joined
+                        .lines()
+                        .map(|l| l.to_string())
+                        .filter(|l| !l.is_empty())
+                        .collect();
+                }
+            });
         }
     }
 }
