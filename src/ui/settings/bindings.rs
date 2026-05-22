@@ -6,6 +6,10 @@ use crate::ui::settings::components as c;
 use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
 
+/// Focus id of the first widget the cross-zone "→ / l" jump should land on.
+#[allow(dead_code)] // wired in the next commit
+pub const FIRST_FOCUS: Option<&str> = Some("bindings_add");
+
 /// Static jump-to-page entry. Individual user bindings are matched at search
 /// time by reading `app.cfg.bindings` directly, since they're dynamic.
 pub const ENTRIES: &[SearchEntry] = &[SearchEntry {
@@ -31,7 +35,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         // Toolbar: + Add binding on the right.
         ui.horizontal(|ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("+ Add binding").clicked() {
+                let resp = ui.button("+ Add binding");
+                c::consume_focus_target(&resp, &mut app.focus_target, "bindings_add");
+                if resp.clicked() {
                     app.cfg.bindings.push(Binding {
                         label: String::from("New binding"),
                         key: String::from("Ctrl+Alt+N"),

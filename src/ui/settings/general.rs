@@ -6,6 +6,10 @@ use crate::ui::settings::components as c;
 use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
 
+/// Focus id of the first widget the cross-zone "→ / l" jump should land on.
+#[allow(dead_code)] // wired in the next commit
+pub const FIRST_FOCUS: Option<&str> = Some("general_theme");
+
 pub const ENTRIES: &[SearchEntry] = &[
     SearchEntry {
         page: Page::General,

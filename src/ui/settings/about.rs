@@ -5,6 +5,10 @@ use crate::ui::settings::components as c;
 use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
 
+/// Focus id of the first widget the cross-zone "→ / l" jump should land on.
+#[allow(dead_code)] // wired in the next commit
+pub const FIRST_FOCUS: Option<&str> = Some("about_open_folder");
+
 pub const ENTRIES: &[SearchEntry] = &[
     SearchEntry {
         page: Page::About,
@@ -51,11 +55,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 .unwrap_or_else(|_| "(unknown)".into());
             let folder = crate::config::project_dir().ok();
             c::field_row(ui, theme, "Config file", |ui| {
-                if let Some(dir) = folder
-                    && ui.button("Open folder").clicked()
-                    && let Err(e) = crate::launch::launch(&dir)
-                {
-                    tracing::warn!("open config folder: {e}");
+                if let Some(dir) = folder {
+                    let resp = ui.button("Open folder");
+                    c::consume_focus_target(
+                        &resp,
+                        &mut app.focus_target,
+                        "about_open_folder",
+                    );
+                    if resp.clicked()
+                        && let Err(e) = crate::launch::launch(&dir)
+                    {
+                        tracing::warn!("open config folder: {e}");
+                    }
                 }
                 ui.label(
                     egui::RichText::new(cfg_path)
