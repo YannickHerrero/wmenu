@@ -24,6 +24,8 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
     let t = theme::tokens();
     let p = theme::palette(app.cfg.theme);
 
+    handle_sidebar_keys(app, child_ctx);
+
     #[allow(deprecated)]
     egui::CentralPanel::default()
         .frame(egui::Frame::new().fill(p.paper))
@@ -112,6 +114,39 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
                 app.settings_dirty = true;
             }
         });
+}
+
+/// Arrow / j / k navigation across the sidebar. Only fires when no text-input
+/// widget is currently capturing keystrokes, so typing inside a field is
+/// unaffected.
+fn handle_sidebar_keys(app: &mut App, ctx: &egui::Context) {
+    if ctx.egui_wants_keyboard_input() {
+        return;
+    }
+    let len = PAGES.len();
+    let current = PAGES.iter().position(|(p, _)| *p == app.settings_page).unwrap_or(0);
+    let mut next = current;
+    ctx.input_mut(|i| {
+        if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
+            || i.consume_key(egui::Modifiers::NONE, egui::Key::J)
+        {
+            next = (current + 1) % len;
+        }
+        if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp)
+            || i.consume_key(egui::Modifiers::NONE, egui::Key::K)
+        {
+            next = (current + len - 1) % len;
+        }
+        if i.consume_key(egui::Modifiers::NONE, egui::Key::Home) {
+            next = 0;
+        }
+        if i.consume_key(egui::Modifiers::NONE, egui::Key::End) {
+            next = len - 1;
+        }
+    });
+    if next != current {
+        app.settings_page = PAGES[next].0;
+    }
 }
 
 pub const PAGES: &[(Page, &str)] = &[
