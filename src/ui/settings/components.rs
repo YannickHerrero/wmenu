@@ -12,7 +12,8 @@ use eframe::egui::{
 
 use crate::config::Theme;
 use crate::hotkey_spec::HotkeySpec;
-use crate::index::SharedIndex;
+use crate::index::{AppEntry, SharedIndex};
+use crate::lnk;
 use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::ui::theme;
@@ -303,11 +304,31 @@ pub fn hotkey_cheatsheet(ui: &mut Ui, theme: Theme) {
 /// underlying `.exe` target. `Launch` actions want `Lnk` (cmd start handles
 /// shortcuts transparently), `FocusOrLaunch` wants `ResolvedExe` so its
 /// window-process matching has a real .exe to compare against.
-#[allow(dead_code)] // wired in following commits
+#[allow(dead_code)] // wired in the bindings page in a later commit
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PickerMode {
     Lnk,
     ResolvedExe,
+}
+
+/// Produce the string to drop into the buffer when an entry is accepted.
+/// `ResolvedExe` falls back to the .lnk path if `lnk::resolve_target` errors
+/// (e.g. the shortcut points at a moved binary) — the user can then edit by
+/// hand. We log the fallback so the failure is visible in `WMENU_LOG=debug`.
+fn pick_value(entry: &AppEntry, mode: PickerMode) -> String {
+    match mode {
+        PickerMode::Lnk => entry.path.to_string_lossy().into_owned(),
+        PickerMode::ResolvedExe => match lnk::resolve_target(&entry.path) {
+            Ok(exe) => exe.to_string_lossy().into_owned(),
+            Err(e) => {
+                tracing::warn!(
+                    "resolve {} -> .exe failed ({e}); falling back to .lnk path",
+                    entry.path.display()
+                );
+                entry.path.to_string_lossy().into_owned()
+            }
+        },
+    }
 }
 
 /// External state the picker needs each frame. Borrows rather than ownership
@@ -345,7 +366,7 @@ pub fn app_picker(
     theme: Theme,
     buf: &mut String,
     ctx: &mut AppPickerCtx<'_>,
-    _mode: PickerMode,
+    mode: PickerMode,
 ) -> Response {
     let id = ctx.state_id;
     let t = theme::tokens();
@@ -403,7 +424,7 @@ pub fn app_picker(
 
             if accept {
                 let entry = &snapshot.entries[ranked[state.selected]];
-                *buf = entry.path.to_string_lossy().into_owned();
+                *buf = pick_value(entry, mode);
                 state.open = false;
                 ui.ctx().memory_mut(|m| m.surrender_focus(response.id));
             } else {
@@ -454,7 +475,7 @@ pub fn app_picker(
                                         state.selected = display_idx;
                                     }
                                     if click.clicked() {
-                                        *buf = entry.path.to_string_lossy().into_owned();
+                                        *buf = pick_value(entry, mode);
                                         state.open = false;
                                         ui.ctx().memory_mut(|m| {
                                             m.surrender_focus(response.id)

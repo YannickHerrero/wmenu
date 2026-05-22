@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, bail};
 
 #[cfg(windows)]
-#[allow(dead_code)] // wired into the app_picker widget in a later commit
 pub fn resolve_target(lnk: &Path) -> Result<PathBuf> {
     use std::os::windows::ffi::OsStrExt;
 
@@ -62,7 +61,6 @@ pub fn resolve_target(lnk: &Path) -> Result<PathBuf> {
 }
 
 #[cfg(not(windows))]
-#[allow(dead_code)] // wired into the app_picker widget in a later commit
 pub fn resolve_target(_lnk: &Path) -> Result<PathBuf> {
     bail!("lnk::resolve_target is only implemented on Windows")
 }
