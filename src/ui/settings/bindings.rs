@@ -40,7 +40,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                             command: String::new(),
                         },
                     });
-                    app.settings_dirty = true;
                 }
             });
         });
@@ -70,7 +69,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 
         if let Some(idx) = remove {
             app.cfg.bindings.remove(idx);
-            app.settings_dirty = true;
         }
     });
 }

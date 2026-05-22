@@ -141,31 +141,11 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
                                         .strong(),
                                 );
 
-                                // Right-aligned: status pill area + save button.
+                                // Right-aligned: search box + save-status pill.
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        if ui.button("Save").clicked() {
-                                            save_and_apply(app, child_ctx);
-                                        }
-                                        if app.settings_dirty {
-                                            ui.label(
-                                                egui::RichText::new("• unsaved")
-                                                    .small()
-                                                    .color(p.ink_soft),
-                                            );
-                                        }
-                                        if let Some(s) = &app.settings_status {
-                                            ui.label(
-                                                egui::RichText::new(s)
-                                                    .small()
-                                                    .color(p.ink_soft),
-                                            );
-                                        }
-
-                                        // Search input fills the remaining
-                                        // horizontal slack between the title
-                                        // and the right-side controls.
+                                        save_pill(ui, app);
                                         ui.add_space(t.space_md);
                                         search_input(ui, app, child_ctx);
                                     },
@@ -210,9 +190,66 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
                 search_results_view(ui, app);
             }
             if config_signature(&app.cfg) != before {
-                app.settings_dirty = true;
+                app.last_edit_at = Some(std::time::Instant::now());
             }
         });
+
+    auto_save_tick(app, child_ctx);
+}
+
+const SAVE_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(400);
+const SAVED_PILL_LINGER: std::time::Duration = std::time::Duration::from_millis(1500);
+
+/// Once per frame, decide whether the debounce window has elapsed and we
+/// should flush the in-memory config to disk. Drives the "Saved" pill fade
+/// via `request_repaint_after` so the UI updates without user input.
+fn auto_save_tick(app: &mut App, ctx: &egui::Context) {
+    if let Some(t) = app.last_edit_at {
+        let elapsed = t.elapsed();
+        if elapsed >= SAVE_DEBOUNCE {
+            match app.cfg.save() {
+                Ok(()) => {
+                    app.last_edit_at = None;
+                    app.last_saved_at = Some(std::time::Instant::now());
+                    app.last_save_error = None;
+                    app.apply_reloaded(ctx);
+                    ctx.request_repaint_after(SAVED_PILL_LINGER);
+                }
+                Err(e) => {
+                    tracing::warn!("auto-save: {e}");
+                    app.last_edit_at = None;
+                    app.last_save_error = Some(e.to_string());
+                }
+            }
+        } else {
+            ctx.request_repaint_after(SAVE_DEBOUNCE - elapsed + std::time::Duration::from_millis(20));
+        }
+    }
+
+    if let Some(at) = app.last_saved_at {
+        let elapsed = at.elapsed();
+        if elapsed >= SAVED_PILL_LINGER {
+            app.last_saved_at = None;
+        } else {
+            ctx.request_repaint_after(SAVED_PILL_LINGER - elapsed);
+        }
+    }
+}
+
+fn save_pill(ui: &mut egui::Ui, app: &App) {
+    use components::Kind;
+    let theme = app.cfg.theme;
+    if let Some(err) = &app.last_save_error {
+        components::pill(ui, theme, Kind::Error, &format!("⚠ {err}"));
+    } else if app.last_edit_at.is_some() {
+        components::pill(ui, theme, Kind::Neutral, "Saving…");
+    } else if app.last_saved_at.is_some() {
+        components::pill(ui, theme, Kind::Success, "Saved");
+    } else {
+        // Nothing to show; emit an invisible spacer so the layout stays
+        // stable as the pill appears and disappears.
+        ui.add_space(0.0);
+    }
 }
 
 /// Renders the search results list (page breadcrumb + label, grouped order
@@ -412,24 +449,4 @@ fn nav_button(ui: &mut egui::Ui, app: &mut App, target: Page, label: &str) {
 
 fn config_signature(cfg: &crate::config::Config) -> Option<String> {
     toml::to_string(cfg).ok()
-}
-
-fn save_and_apply(app: &mut App, child_ctx: &egui::Context) {
-    match app.cfg.save() {
-        Ok(()) => {
-            app.settings_dirty = false;
-            app.settings_status = Some(format!(
-                "Saved to {}",
-                crate::config::config_path()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|_| "(unknown)".into())
-            ));
-        }
-        Err(e) => {
-            app.settings_status = Some(format!("Save failed: {e}"));
-            tracing::warn!("save config: {e}");
-            return;
-        }
-    }
-    app.apply_reloaded(child_ctx);
 }

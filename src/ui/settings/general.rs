@@ -56,7 +56,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 c::consume_focus_target(&resp, &mut app.focus_target, "general_theme");
                 if app.cfg.theme != prev {
                     theme::apply(ui.ctx(), app.cfg.theme);
-                    app.settings_dirty = true;
                 }
             });
         });

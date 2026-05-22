@@ -1,5 +1,5 @@
 use std::sync::mpsc::{Receiver, channel};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eframe::egui;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
@@ -57,8 +57,16 @@ pub struct App {
     _watcher: Option<RecommendedWatcher>,
     pub settings_open: bool,
     pub settings_page: settings::Page,
-    pub settings_dirty: bool,
-    pub settings_status: Option<String>,
+    /// Timestamp of the most-recent config mutation that hasn't been flushed
+    /// to disk yet. The settings render loop saves once this is older than
+    /// the debounce window.
+    pub last_edit_at: Option<Instant>,
+    /// Timestamp of the most-recent successful save. Used to fade out the
+    /// "Saved" pill in the header.
+    pub last_saved_at: Option<Instant>,
+    /// Sticky error from the most-recent failed save. Cleared on the next
+    /// successful save.
+    pub last_save_error: Option<String>,
     pub settings_search: String,
     pub settings_search_focus_request: bool,
     /// One-shot focus hand-off set by a search-result click. The next render
@@ -146,8 +154,9 @@ impl App {
             _watcher: watcher,
             settings_open: false,
             settings_page: settings::Page::default(),
-            settings_dirty: false,
-            settings_status: None,
+            last_edit_at: None,
+            last_saved_at: None,
+            last_save_error: None,
             settings_search: String::new(),
             settings_search_focus_request: false,
             focus_target: None,

@@ -77,7 +77,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 
         c::section(ui, theme, "Indexing", |ui| {
             c::field_row(ui, theme, "Scan interval (minutes)", |ui| {
-                let prev = app.cfg.launcher.scan_interval_minutes;
                 let resp = ui.add(
                     egui::DragValue::new(&mut app.cfg.launcher.scan_interval_minutes)
                         .range(1..=120)
@@ -88,9 +87,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     &mut app.focus_target,
                     "launcher_scan_interval",
                 );
-                if app.cfg.launcher.scan_interval_minutes != prev {
-                    app.settings_dirty = true;
-                }
             });
 
             c::stacked_field(ui, theme, "Extra directories", |ui| {
@@ -175,7 +171,6 @@ fn extra_dirs(ui: &mut egui::Ui, _theme: Theme, app: &mut App) {
             );
             if buf != prev {
                 *dir = PathBuf::from(buf);
-                app.settings_dirty = true;
             }
             if ui.button("×").on_hover_text("remove").clicked() {
                 remove = Some(i);
@@ -185,12 +180,10 @@ fn extra_dirs(ui: &mut egui::Ui, _theme: Theme, app: &mut App) {
     }
     if let Some(i) = remove {
         dirs.remove(i);
-        app.settings_dirty = true;
     }
     ui.add_space(theme::tokens().space_xs);
     if ui.button("+ Add directory").clicked() {
         dirs.push(PathBuf::new());
-        app.settings_dirty = true;
     }
 }
 
@@ -213,7 +206,6 @@ fn pending_apply(app: &mut App, which: ApplyHotkey) {
                 Ok(_) => {
                     app.cfg.launcher.hotkey.0 = spec;
                     app.hotkey_error = None;
-                    app.settings_dirty = true;
                 }
                 Err(e) => app.hotkey_error = Some(format!("{e}")),
             }
@@ -224,7 +216,6 @@ fn pending_apply(app: &mut App, which: ApplyHotkey) {
                 Ok(_) => {
                     app.cfg.launcher.omakase_hotkey.0 = spec;
                     app.omakase_hotkey_error = None;
-                    app.settings_dirty = true;
                 }
                 Err(e) => app.omakase_hotkey_error = Some(format!("{e}")),
             }
