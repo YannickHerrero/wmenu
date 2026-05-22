@@ -12,6 +12,9 @@ use eframe::egui::{
 
 use crate::config::Theme;
 use crate::hotkey_spec::HotkeySpec;
+use crate::index::SharedIndex;
+use crate::matcher::Engine;
+use crate::mru::Mru;
 use crate::ui::theme;
 
 /// What kind of pill / inline error to render.
@@ -294,6 +297,72 @@ pub fn hotkey_cheatsheet(ui: &mut Ui, theme: Theme) {
         .small()
         .color(p.ink_soft),
     );
+}
+
+/// Whether the picker should store the raw `.lnk` path it picked or the
+/// underlying `.exe` target. `Launch` actions want `Lnk` (cmd start handles
+/// shortcuts transparently), `FocusOrLaunch` wants `ResolvedExe` so its
+/// window-process matching has a real .exe to compare against.
+#[allow(dead_code)] // wired in following commits
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PickerMode {
+    Lnk,
+    ResolvedExe,
+}
+
+/// External state the picker needs each frame. Borrows rather than ownership
+/// so the caller can keep mutating the same `App` fields elsewhere in the
+/// frame without lifetimes getting in the way.
+#[allow(dead_code)] // fields consumed by following commits
+pub struct AppPickerCtx<'a> {
+    pub index: &'a SharedIndex,
+    pub matcher: &'a mut Engine,
+    pub mru: &'a Mru,
+    /// Unique per-row id so multiple pickers on the same page (one per
+    /// binding) keep separate open/selected state in egui memory.
+    pub state_id: egui::Id,
+}
+
+/// Per-picker UI state stashed in `egui::Memory::data`.
+#[allow(dead_code)] // `selected` is consumed by the keyboard nav commit
+#[derive(Clone, Default)]
+struct PickerState {
+    /// Whether the dropdown is currently open. Toggled by focus and Esc.
+    open: bool,
+    /// Index into the matched results that's currently highlighted.
+    selected: usize,
+}
+
+/// Text input with an inline autocomplete dropdown of indexed Start-Menu
+/// apps. The buffer stays editable for arbitrary manual paths; the dropdown
+/// only opens when the field has focus and there's text to match against.
+///
+/// Skeleton commit: renders only the input. The next few commits add the
+/// matcher-driven results, keyboard navigation, and .lnk → .exe resolution.
+#[allow(dead_code)] // wired in following commits
+pub fn app_picker(
+    ui: &mut Ui,
+    _theme: Theme,
+    buf: &mut String,
+    ctx: &mut AppPickerCtx<'_>,
+    _mode: PickerMode,
+) -> Response {
+    let id = ctx.state_id;
+    let mut state: PickerState = ui
+        .ctx()
+        .memory(|m| m.data.get_temp::<PickerState>(id).unwrap_or_default());
+
+    let response = ui.add(
+        TextEdit::singleline(buf)
+            .desired_width(f32::INFINITY)
+            .id(id.with("input")),
+    );
+
+    // Open the dropdown whenever the input has focus. Close it on focus loss.
+    state.open = response.has_focus();
+
+    ui.ctx().memory_mut(|m| m.data.insert_temp(id, state));
+    response
 }
 
 /// Build the egui::Id a focusable settings field should use. Search results
