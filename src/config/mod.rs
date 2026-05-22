@@ -32,14 +32,4 @@ impl Config {
         Ok(cfg)
     }
 
-    pub fn save(&self) -> Result<()> {
-        let path = config_path()?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("create config dir: {}", parent.display()))?;
-        }
-        let text = toml::to_string_pretty(self).context("serialize config")?;
-        fs::write(&path, text).with_context(|| format!("write config: {}", path.display()))?;
-        Ok(())
-    }
 }

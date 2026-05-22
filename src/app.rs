@@ -10,6 +10,7 @@ use crate::action;
 use crate::amphetamine::Amphetamine;
 use crate::autostart;
 use crate::config::{Config, watcher as config_watcher};
+use crate::config::watcher::LastWritten;
 use crate::hotkey::{BindingError, Manager as HotkeyMgr};
 use crate::index;
 use crate::index::SharedIndex;
@@ -54,6 +55,9 @@ pub struct App {
     pub omakase_hotkey_input: String,
     pub omakase_hotkey_error: Option<String>,
     pub cfg_rx: Receiver<Config>,
+    /// See [`LastWritten`] — used to suppress watcher feedback when the app
+    /// auto-saves its own changes.
+    pub last_written_config: LastWritten,
     _watcher: Option<RecommendedWatcher>,
     pub settings_open: bool,
     pub settings_page: settings::Page,
@@ -100,7 +104,8 @@ impl App {
         }));
 
         let (cfg_tx, cfg_rx) = channel();
-        let watcher = match config_watcher::spawn(cfg_tx) {
+        let last_written_config = config_watcher::make_last_written();
+        let watcher = match config_watcher::spawn(cfg_tx, last_written_config.clone()) {
             Ok(w) => Some(w),
             Err(e) => {
                 tracing::warn!("start config watcher: {e}");
@@ -151,6 +156,7 @@ impl App {
             omakase_hotkey_input,
             omakase_hotkey_error: None,
             cfg_rx,
+            last_written_config,
             _watcher: watcher,
             settings_open: false,
             settings_page: settings::Page::default(),
@@ -162,6 +168,25 @@ impl App {
             focus_target: None,
             binding_errors,
         }
+    }
+
+    /// Serialize and write the current config to disk, recording the
+    /// serialized text in `last_written_config` so the file watcher can skip
+    /// the subsequent self-write notification.
+    pub fn save_config(&self) -> anyhow::Result<()> {
+        use anyhow::Context as _;
+        let text = toml::to_string_pretty(&self.cfg).context("serialize config")?;
+        if let Ok(mut guard) = self.last_written_config.lock() {
+            *guard = Some(text.clone());
+        }
+        let path = crate::config::config_path()?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create config dir: {}", parent.display()))?;
+        }
+        std::fs::write(&path, &text)
+            .with_context(|| format!("write config: {}", path.display()))?;
+        Ok(())
     }
 
     pub(crate) fn apply_reloaded(&mut self, ctx: &egui::Context) {
@@ -429,7 +454,7 @@ impl eframe::App for App {
                         let new = !self.amphetamine.is_enabled();
                         self.amphetamine.set(new);
                         self.cfg.amphetamine_enabled = new;
-                        if let Err(e) = self.cfg.save() {
+                        if let Err(e) = self.save_config() {
                             tracing::warn!("save config: {e}");
                         }
                     }

@@ -207,7 +207,7 @@ fn auto_save_tick(app: &mut App, ctx: &egui::Context) {
     if let Some(t) = app.last_edit_at {
         let elapsed = t.elapsed();
         if elapsed >= SAVE_DEBOUNCE {
-            match app.cfg.save() {
+            match app.save_config() {
                 Ok(()) => {
                     app.last_edit_at = None;
                     app.last_saved_at = Some(std::time::Instant::now());
