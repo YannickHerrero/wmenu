@@ -286,9 +286,10 @@ fn search_results_view(ui: &mut egui::Ui, app: &mut App) {
                 }
             });
 
-        if let Some((page, _focus_id)) = jump {
+        if let Some((page, focus_id)) = jump {
             app.settings_page = page;
             app.settings_search.clear();
+            app.focus_target = focus_id;
         }
     });
 }

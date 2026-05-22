@@ -233,6 +233,26 @@ pub fn t() -> Tokens {
     theme::tokens()
 }
 
+/// Build the egui::Id a focusable settings field should use. Search results
+/// can request focus on the matching widget by storing the same string in
+/// `App.focus_target`.
+pub fn focus_id(name: &'static str) -> egui::Id {
+    egui::Id::new(("settings_focus", name))
+}
+
+/// If `App.focus_target == Some(name)`, calls `request_focus()` on `resp` and
+/// clears the target so the hand-off only fires once.
+pub fn consume_focus_target(
+    response: &egui::Response,
+    target: &mut Option<&'static str>,
+    name: &'static str,
+) {
+    if *target == Some(name) {
+        response.request_focus();
+        *target = None;
+    }
+}
+
 /// Helper: convert a plain string into a body-sized rich text in the page's
 /// default text colour. Lets pages write `body("hello")` instead of repeating
 /// the size/colour boilerplate everywhere.

@@ -54,20 +54,22 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             if hotkey_row(
                 ui,
                 theme,
+                app,
+                "launcher_hotkey_input",
                 "Launcher hotkey",
-                &mut app.hotkey_input,
-                app.hotkey_error.as_deref(),
                 "e.g. Alt+Space, Ctrl+Alt+Space",
+                Field::Launcher,
             ) {
                 pending_apply(app, ApplyHotkey::Launcher);
             }
             if hotkey_row(
                 ui,
                 theme,
+                app,
+                "launcher_omakase_hotkey_input",
                 "Omakase hotkey",
-                &mut app.omakase_hotkey_input,
-                app.omakase_hotkey_error.as_deref(),
                 "e.g. Alt+Super+Space (Super = Win key)",
+                Field::Omakase,
             ) {
                 pending_apply(app, ApplyHotkey::Omakase);
             }
@@ -76,10 +78,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         c::section(ui, theme, "Indexing", |ui| {
             c::field_row(ui, theme, "Scan interval (minutes)", |ui| {
                 let prev = app.cfg.launcher.scan_interval_minutes;
-                ui.add(
+                let resp = ui.add(
                     egui::DragValue::new(&mut app.cfg.launcher.scan_interval_minutes)
                         .range(1..=120)
                         .speed(1.0),
+                );
+                c::consume_focus_target(
+                    &resp,
+                    &mut app.focus_target,
+                    "launcher_scan_interval",
                 );
                 if app.cfg.launcher.scan_interval_minutes != prev {
                     app.settings_dirty = true;
@@ -98,23 +105,36 @@ enum ApplyHotkey {
     Omakase,
 }
 
+enum Field {
+    Launcher,
+    Omakase,
+}
+
 /// Returns `true` if the user clicked the row's Apply button.
 fn hotkey_row(
     ui: &mut egui::Ui,
     theme: Theme,
+    app: &mut App,
+    focus_name: &'static str,
     label: &str,
-    buf: &mut String,
-    err: Option<&str>,
     hint: &str,
+    field: Field,
 ) -> bool {
     let mut applied = false;
     c::field_row(ui, theme, label, |ui| {
         let apply_btn_w = 60.0;
         let avail = ui.available_width();
-        ui.add_sized(
-            [avail - apply_btn_w - 8.0, 24.0],
-            egui::TextEdit::singleline(buf),
-        );
+        let resp = match field {
+            Field::Launcher => ui.add_sized(
+                [avail - apply_btn_w - 8.0, 24.0],
+                egui::TextEdit::singleline(&mut app.hotkey_input),
+            ),
+            Field::Omakase => ui.add_sized(
+                [avail - apply_btn_w - 8.0, 24.0],
+                egui::TextEdit::singleline(&mut app.omakase_hotkey_input),
+            ),
+        };
+        c::consume_focus_target(&resp, &mut app.focus_target, focus_name);
         if ui
             .add_sized([apply_btn_w, 24.0], egui::Button::new("Apply"))
             .clicked()
@@ -129,9 +149,13 @@ fn hotkey_row(
                 .color(theme::palette(theme).ink_soft),
         );
     });
+    let err = match field {
+        Field::Launcher => app.hotkey_error.clone(),
+        Field::Omakase => app.omakase_hotkey_error.clone(),
+    };
     if let Some(e) = err {
         indent_under_label(ui, |ui| {
-            c::inline_error(ui, theme, e);
+            c::inline_error(ui, theme, &e);
         });
     }
     applied

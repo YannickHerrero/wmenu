@@ -30,7 +30,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         c::section(ui, theme, "Cursor wiggle", |ui| {
             c::field_row(ui, theme, "Keep Windows awake", |ui| {
                 let prev = app.cfg.amphetamine_enabled;
-                ui.checkbox(&mut app.cfg.amphetamine_enabled, "");
+                let resp = ui.checkbox(&mut app.cfg.amphetamine_enabled, "");
+                c::consume_focus_target(&resp, &mut app.focus_target, "amphetamine_toggle");
                 if app.cfg.amphetamine_enabled != prev {
                     app.amphetamine.set(app.cfg.amphetamine_enabled);
                 }

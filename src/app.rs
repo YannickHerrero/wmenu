@@ -61,6 +61,10 @@ pub struct App {
     pub settings_status: Option<String>,
     pub settings_search: String,
     pub settings_search_focus_request: bool,
+    /// One-shot focus hand-off set by a search-result click. The next render
+    /// of the matching page should call `request_focus()` on the widget whose
+    /// id matches this string, then clear the field.
+    pub focus_target: Option<&'static str>,
     pub binding_errors: Vec<BindingError>,
 }
 
@@ -146,6 +150,7 @@ impl App {
             settings_status: None,
             settings_search: String::new(),
             settings_search_focus_request: false,
+            focus_target: None,
             binding_errors,
         }
     }

@@ -39,7 +39,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         c::section(ui, theme, "Appearance", |ui| {
             c::field_row(ui, theme, "Theme", |ui| {
                 let prev = app.cfg.theme;
-                egui::ComboBox::from_id_salt("settings_theme")
+                let resp = egui::ComboBox::from_id_salt(c::focus_id("general_theme"))
                     .selected_text(theme_label(app.cfg.theme))
                     .show_ui(ui, |ui| {
                         for t in [
@@ -51,7 +51,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         ] {
                             ui.selectable_value(&mut app.cfg.theme, t, theme_label(t));
                         }
-                    });
+                    })
+                    .response;
+                c::consume_focus_target(&resp, &mut app.focus_target, "general_theme");
                 if app.cfg.theme != prev {
                     theme::apply(ui.ctx(), app.cfg.theme);
                     app.settings_dirty = true;
@@ -61,10 +63,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 
         c::section(ui, theme, "Startup", |ui| {
             c::field_row(ui, theme, "Launch with Windows", |ui| {
-                ui.checkbox(&mut app.cfg.daemon.autostart, "");
+                let resp = ui.checkbox(&mut app.cfg.daemon.autostart, "");
+                c::consume_focus_target(&resp, &mut app.focus_target, "general_autostart");
             });
             c::field_row(ui, theme, "Start minimized to tray", |ui| {
-                ui.checkbox(&mut app.cfg.daemon.start_minimized, "");
+                let resp = ui.checkbox(&mut app.cfg.daemon.start_minimized, "");
+                c::consume_focus_target(
+                    &resp,
+                    &mut app.focus_target,
+                    "general_start_minimized",
+                );
             });
         });
     });
