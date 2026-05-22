@@ -231,13 +231,20 @@ impl App {
         if !self.settings_open {
             return;
         }
+        let borderless = self.cfg.settings_borderless;
         let close_requested = ctx.show_viewport_immediate(
             egui::ViewportId::from_hash_of("wmenu_settings"),
             egui::ViewportBuilder::default()
                 .with_title("wmenu — settings")
+                .with_decorations(!borderless)
                 .with_inner_size([760.0, 560.0])
                 .with_min_inner_size([520.0, 380.0]),
             |child_ctx, _class| {
+                // The builder is only honoured on viewport creation, so push
+                // the current value as a command each frame to keep the
+                // decoration toggle live when the user flips the checkbox.
+                child_ctx
+                    .send_viewport_cmd(egui::ViewportCommand::Decorations(!borderless));
                 settings::render(self, child_ctx);
                 child_ctx.input(|i| i.viewport().close_requested())
             },
