@@ -277,6 +277,7 @@ fn search_results_view(ui: &mut egui::Ui, app: &mut App) {
 
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
                 if hits.is_empty() {
                     ui.label(

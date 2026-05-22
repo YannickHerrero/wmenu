@@ -49,6 +49,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
                 for (idx, binding) in app.cfg.bindings.iter_mut().enumerate() {
                     ui.push_id(idx, |ui| {
