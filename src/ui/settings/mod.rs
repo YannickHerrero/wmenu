@@ -81,19 +81,23 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
 
             egui::Panel::left("settings_nav")
                 .resizable(false)
-                .default_size(180.0)
+                .default_size(192.0)
                 .show_inside(ui, |ui| {
-                    ui.add_space(t.space_md);
-                    nav_button(ui, &mut app.settings_page, Page::General, "General");
-                    nav_button(ui, &mut app.settings_page, Page::Launcher, "Launcher");
-                    nav_button(ui, &mut app.settings_page, Page::Bindings, "Bindings");
-                    nav_button(
-                        ui,
-                        &mut app.settings_page,
-                        Page::Amphetamine,
-                        "Amphetamine",
-                    );
-                    nav_button(ui, &mut app.settings_page, Page::About, "About");
+                    let nav_pad = egui::Margin {
+                        left: t.space_sm as i8,
+                        right: t.space_sm as i8,
+                        top: t.space_md as i8,
+                        bottom: t.space_md as i8,
+                    };
+                    egui::Frame::new()
+                        .fill(p.paper)
+                        .inner_margin(nav_pad)
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            for (page, label) in PAGES {
+                                nav_button(ui, app, *page, label);
+                            }
+                        });
                 });
 
             let before = config_signature(&app.cfg);
@@ -110,11 +114,55 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
         });
 }
 
-fn nav_button(ui: &mut egui::Ui, current: &mut Page, target: Page, label: &str) {
-    let selected = *current == target;
-    if ui.selectable_label(selected, label).clicked() {
-        *current = target;
+pub const PAGES: &[(Page, &str)] = &[
+    (Page::General, "General"),
+    (Page::Launcher, "Launcher"),
+    (Page::Bindings, "Bindings"),
+    (Page::Amphetamine, "Amphetamine"),
+    (Page::About, "About"),
+];
+
+fn nav_button(ui: &mut egui::Ui, app: &mut App, target: Page, label: &str) {
+    let t = theme::tokens();
+    let p = theme::palette(app.cfg.theme);
+    let selected = app.settings_page == target;
+
+    let row_h = 32.0;
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), row_h),
+        egui::Sense::click(),
+    );
+
+    let hovered = response.hovered();
+    let bg = if selected {
+        p.accent
+    } else if hovered {
+        p.muted
+    } else {
+        p.paper
+    };
+    let fg = if selected { p.paper } else { p.ink };
+
+    ui.painter().rect_filled(
+        rect,
+        egui::CornerRadius::same(t.radius_sm as u8),
+        bg,
+    );
+
+    let text_x = rect.left() + t.space_md;
+    ui.painter().text(
+        egui::pos2(text_x, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(t.font_body),
+        fg,
+    );
+
+    if response.clicked() {
+        app.settings_page = target;
     }
+
+    ui.add_space(t.space_xs);
 }
 
 fn config_signature(cfg: &crate::config::Config) -> Option<String> {
