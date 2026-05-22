@@ -108,6 +108,10 @@ pub struct Config {
     pub daemon: DaemonCfg,
     pub launcher: LauncherCfg,
     pub amphetamine_enabled: bool,
+    /// Hide the OS titlebar / window chrome on the settings window. Esc still
+    /// closes it; without a titlebar there's no draggable region (rely on the
+    /// window manager, e.g. Win+drag on Windows).
+    pub settings_borderless: bool,
     pub bindings: Vec<Binding>,
 }
 
