@@ -117,6 +117,14 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
     if child_ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::F)) {
         app.settings_search_focus_request = true;
     }
+    if child_ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        // Two-step: Esc first clears an active search, then closes the window.
+        if !app.settings_search.is_empty() {
+            app.settings_search.clear();
+        } else {
+            child_ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
 
     handle_sidebar_keys(app, child_ctx);
 
@@ -343,9 +351,10 @@ fn page_label(page: Page) -> &'static str {
 
 /// The search input in the top header. Stretches to fill the remaining
 /// horizontal slack inside its right-to-left layout. Honours the
-/// `settings_search_focus_request` flag set by `Ctrl+F`.
-fn search_input(ui: &mut egui::Ui, app: &mut App, ctx: &egui::Context) {
-    let t = theme::tokens();
+/// `settings_search_focus_request` flag set by `Ctrl+F`. (Esc handling
+/// lives in `render` because it should work regardless of which widget is
+/// focused.)
+fn search_input(ui: &mut egui::Ui, app: &mut App, _ctx: &egui::Context) {
     let id = egui::Id::new("settings_search_input");
     let avail = ui.available_width();
     let width = avail.clamp(160.0, 360.0);
@@ -359,14 +368,6 @@ fn search_input(ui: &mut egui::Ui, app: &mut App, ctx: &egui::Context) {
         resp.request_focus();
         app.settings_search_focus_request = false;
     }
-    // Esc clears the search when the search input itself is focused.
-    let focused = ctx.memory(|m| m.focused()) == Some(id);
-    if focused
-        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
-    {
-        app.settings_search.clear();
-    }
-    let _ = t;
 }
 
 /// hjkl + arrow-key navigation. Splits between two zones depending on which
