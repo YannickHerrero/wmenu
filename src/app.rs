@@ -60,6 +60,10 @@ pub struct App {
     pub last_written_config: LastWritten,
     _watcher: Option<RecommendedWatcher>,
     pub settings_open: bool,
+    /// Cache of the last `settings_borderless` value we applied to the
+    /// settings HWND via Win32, so we don't hammer EnumWindows every frame
+    /// when nothing changed. Reset when the window closes.
+    pub last_settings_chrome: Option<bool>,
     pub settings_page: settings::Page,
     /// Timestamp of the most-recent config mutation that hasn't been flushed
     /// to disk yet. The settings render loop saves once this is older than
@@ -159,6 +163,7 @@ impl App {
             last_written_config,
             _watcher: watcher,
             settings_open: false,
+            last_settings_chrome: None,
             settings_page: settings::Page::default(),
             last_edit_at: None,
             last_saved_at: None,
@@ -236,19 +241,24 @@ impl App {
             egui::ViewportId::from_hash_of("wmenu_settings"),
             egui::ViewportBuilder::default()
                 .with_title("wmenu — settings")
-                .with_decorations(!borderless)
                 .with_inner_size([760.0, 560.0])
                 .with_min_inner_size([520.0, 380.0]),
             |child_ctx, _class| {
-                // The builder is only honoured on viewport creation, so push
-                // the current value as a command each frame to keep the
-                // decoration toggle live when the user flips the checkbox.
-                child_ctx
-                    .send_viewport_cmd(egui::ViewportCommand::Decorations(!borderless));
                 settings::render(self, child_ctx);
                 child_ctx.input(|i| i.viewport().close_requested())
             },
         );
+
+        // Strip / restore WS_CAPTION on the settings HWND so we get a
+        // wezterm-style "RESIZE only" chrome (no titlebar but resize border
+        // stays, which keeps the window floatable / sizable in tiling WMs
+        // like GlazeWM). Only fired when the desired state changes — finding
+        // the HWND is a Win32 EnumWindows call.
+        if self.last_settings_chrome != Some(borderless)
+            && apply_settings_chrome(borderless)
+        {
+            self.last_settings_chrome = Some(borderless);
+        }
         if close_requested {
             // Flush any pending debounced edit so closing the window can't
             // drop unsaved changes.
@@ -259,6 +269,9 @@ impl App {
             }
             self.last_edit_at = None;
             self.settings_open = false;
+            // Next open will recreate the HWND, so forget the cached chrome
+            // state so we re-apply on the new window.
+            self.last_settings_chrome = None;
         }
     }
 
@@ -505,6 +518,99 @@ impl eframe::App for App {
             egui::StrokeKind::Inside,
         );
     }
+}
+
+/// Toggle the wezterm-style "RESIZE" chrome on the settings window: strip
+/// `WS_CAPTION` (titlebar + system menu controls) while keeping
+/// `WS_THICKFRAME` (the resize border). Looks the window up by its title via
+/// `EnumWindows` filtered to our own process. Returns `true` if the matching
+/// HWND was found and updated this frame; the caller uses that to gate the
+/// "already applied" cache so we keep retrying until the HWND exists.
+#[cfg(windows)]
+fn apply_settings_chrome(borderless: bool) -> bool {
+    use std::cell::Cell;
+
+    use windows::Win32::Foundation::{HWND, LPARAM, TRUE};
+    use windows::Win32::System::Threading::GetCurrentProcessId;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GWL_STYLE, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+        GetWindowThreadProcessId, HWND_TOP, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_CAPTION,
+    };
+    use windows::core::BOOL;
+
+    const TITLE: &str = "wmenu — settings";
+
+    thread_local! {
+        static MATCH: Cell<isize> = const { Cell::new(0) };
+        static OWN_PID: Cell<u32> = const { Cell::new(0) };
+    }
+
+    unsafe extern "system" fn cb(hwnd: HWND, _: LPARAM) -> BOOL {
+        unsafe {
+            let mut pid: u32 = 0;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            if pid != OWN_PID.with(|p| p.get()) {
+                return TRUE;
+            }
+            let len = GetWindowTextLengthW(hwnd);
+            if len <= 0 {
+                return TRUE;
+            }
+            let mut buf = vec![0u16; len as usize + 1];
+            let got = GetWindowTextW(hwnd, &mut buf);
+            if got <= 0 {
+                return TRUE;
+            }
+            let title = String::from_utf16_lossy(&buf[..got as usize]);
+            if title == TITLE {
+                MATCH.with(|m| m.set(hwnd.0 as isize));
+                return BOOL(0); // stop enumeration
+            }
+        }
+        TRUE
+    }
+
+    OWN_PID.with(|p| p.set(unsafe { GetCurrentProcessId() }));
+    MATCH.with(|m| m.set(0));
+    unsafe {
+        let _ = EnumWindows(Some(cb), LPARAM(0));
+    }
+    let hwnd_ptr = MATCH.with(|m| m.get());
+    if hwnd_ptr == 0 {
+        return false;
+    }
+    let hwnd = HWND(hwnd_ptr as *mut _);
+
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        let caption_bits = WS_CAPTION.0 as isize;
+        let new_style = if borderless {
+            style & !caption_bits
+        } else {
+            style | caption_bits
+        };
+        if new_style != style {
+            SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
+            // Tell Windows to recompute the non-client area so the titlebar
+            // actually appears/disappears without waiting for a resize event.
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_TOP),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+            );
+        }
+    }
+    true
+}
+
+#[cfg(not(windows))]
+fn apply_settings_chrome(_borderless: bool) -> bool {
+    true
 }
 
 #[cfg(windows)]
