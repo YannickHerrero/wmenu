@@ -39,7 +39,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 if resp.clicked() {
                     app.cfg.bindings.push(Binding {
                         label: String::from("New binding"),
-                        key: String::from("Ctrl+Alt+N"),
+                        key: String::from("^!N"),
                         action: Action::Launch {
                             command: String::new(),
                         },
@@ -47,6 +47,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
             });
         });
+        ui.add_space(theme::tokens().space_sm);
+        c::hotkey_cheatsheet(ui, theme);
         ui.add_space(theme::tokens().space_sm);
 
         let mut remove: Option<usize> = None;
@@ -57,15 +59,22 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
                 for (idx, binding) in app.cfg.bindings.iter_mut().enumerate() {
+                    let key_err = errors
+                        .iter()
+                        .find(|e| e.index == idx)
+                        .map(|e| e.message.clone());
                     ui.push_id(idx, |ui| {
                         c::card(ui, theme, |ui| {
-                            binding_header(ui, theme, binding, &mut remove, idx);
+                            binding_header(
+                                ui,
+                                theme,
+                                binding,
+                                key_err.as_deref(),
+                                &mut remove,
+                                idx,
+                            );
                             ui.add_space(theme::tokens().space_sm);
                             action_editor(ui, theme, &mut binding.action);
-                            for err in errors.iter().filter(|e| e.index == idx) {
-                                ui.add_space(theme::tokens().space_xs);
-                                c::inline_error(ui, theme, &err.message);
-                            }
                         });
                     });
                     ui.add_space(theme::tokens().space_sm);
@@ -82,6 +91,7 @@ fn binding_header(
     ui: &mut egui::Ui,
     theme: Theme,
     binding: &mut Binding,
+    key_err: Option<&str>,
     remove: &mut Option<usize>,
     idx: usize,
 ) {
@@ -91,7 +101,7 @@ fn binding_header(
         // Label spans the left half so long binding names stay readable.
         let avail = ui.available_width();
         let remove_w = 80.0;
-        let key_w = 160.0;
+        let key_w = 200.0;
         let label_w = (avail - key_w - remove_w - 2.0 * t.space_sm).max(120.0);
 
         ui.vertical(|ui| {
@@ -114,10 +124,9 @@ fn binding_header(
                     .small()
                     .color(p.ink_soft),
             );
-            ui.add_sized(
-                [key_w, 24.0],
-                egui::TextEdit::singleline(&mut binding.key),
-            );
+            // Live-preview hotkey field: the input width is fixed and the
+            // preview / error lines render directly below within this column.
+            let _ = c::hotkey_input(ui, theme, &mut binding.key, key_w, key_err);
         });
 
         ui.add_space(t.space_sm);

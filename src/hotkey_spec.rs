@@ -18,8 +18,6 @@
 //! Format detection is trivial: if the first non-whitespace byte is one of
 //! `^+!#`, parse AHK; otherwise parse canonical.
 
-#![allow(dead_code)] // wired into the manager + settings widget in following commits
-
 use std::fmt;
 
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};

@@ -211,13 +211,12 @@ fn tint(base: Color32, accent: Color32, amount: f32) -> Color32 {
 }
 
 /// Result of [`hotkey_input`] for a single frame.
-#[allow(dead_code)] // wired into the launcher + bindings pages in following commits
 pub struct HotkeyInputResult {
-    /// True if the user's text input changed this frame.
-    pub changed: bool,
     /// `Some(spec)` when the current buffer parses cleanly; otherwise `None`.
     pub spec: Option<HotkeySpec>,
-    /// Response of the text edit so the caller can request focus etc.
+    /// Response of the text edit so the caller can request focus etc. The
+    /// caller can also read `response.changed()` if it cares about frame-level
+    /// edit detection.
     pub response: Response,
 }
 
@@ -230,7 +229,6 @@ pub struct HotkeyInputResult {
 /// `extra_error` is rendered after the parse preview and is intended for
 /// errors that come from the registration layer (e.g. "duplicate of binding
 /// #N", "register failed"), which the parser can't detect on its own.
-#[allow(dead_code)] // wired in the next commit
 pub fn hotkey_input(
     ui: &mut Ui,
     theme: Theme,
@@ -242,7 +240,6 @@ pub fn hotkey_input(
     let p = theme::palette(theme);
 
     let response = ui.add_sized([width, 28.0], TextEdit::singleline(buf));
-    let changed = response.changed();
 
     let trimmed = buf.trim();
     let parsed = (!trimmed.is_empty()).then(|| HotkeySpec::parse(trimmed));
@@ -279,7 +276,6 @@ pub fn hotkey_input(
     }
 
     HotkeyInputResult {
-        changed,
         spec: parsed.and_then(|r| r.ok()),
         response,
     }
@@ -288,7 +284,6 @@ pub fn hotkey_input(
 /// One-line legend for the hotkey input format. Render once near the top of a
 /// section that contains hotkey fields so the user can learn the AHK
 /// shorthand without having to memorise it.
-#[allow(dead_code)] // wired in the next commit
 pub fn hotkey_cheatsheet(ui: &mut Ui, theme: Theme) {
     let p = theme::palette(theme);
     ui.label(
