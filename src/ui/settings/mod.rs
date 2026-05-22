@@ -104,6 +104,12 @@ fn search_settings(query: &str, app: &App) -> Vec<SearchHit> {
 }
 
 pub fn render(app: &mut App, child_ctx: &egui::Context) {
+    // The settings window runs in its own viewport with its own egui Context;
+    // the main-viewport theme::apply at startup doesn't reach it, so the panel
+    // backgrounds stay the egui default until something here re-applies. Do
+    // it every frame — it's a single set_visuals call.
+    theme::apply(child_ctx, app.cfg.theme);
+
     let t = theme::tokens();
     let p = theme::palette(app.cfg.theme);
 
