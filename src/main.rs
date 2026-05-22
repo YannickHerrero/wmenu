@@ -9,6 +9,7 @@ mod app;
 mod autostart;
 mod config;
 mod hotkey;
+mod hotkey_spec;
 mod index;
 mod launch;
 mod logging;
