@@ -7,10 +7,11 @@
 
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Frame, Margin, Response, RichText, Sense,
-    Stroke, Ui, Vec2,
+    Stroke, TextEdit, Ui, Vec2,
 };
 
 use crate::config::Theme;
+use crate::hotkey_spec::HotkeySpec;
 use crate::ui::theme;
 
 /// What kind of pill / inline error to render.
@@ -207,6 +208,97 @@ fn tint(base: Color32, accent: Color32, amount: f32) -> Color32 {
         mix(base.g(), accent.g()),
         mix(base.b(), accent.b()),
     )
+}
+
+/// Result of [`hotkey_input`] for a single frame.
+#[allow(dead_code)] // wired into the launcher + bindings pages in following commits
+pub struct HotkeyInputResult {
+    /// True if the user's text input changed this frame.
+    pub changed: bool,
+    /// `Some(spec)` when the current buffer parses cleanly; otherwise `None`.
+    pub spec: Option<HotkeySpec>,
+    /// Response of the text edit so the caller can request focus etc.
+    pub response: Response,
+}
+
+/// Renders a hotkey text input with a live parse preview underneath.
+///
+/// - Empty input: preview is suppressed (the cheatsheet still teaches format).
+/// - Valid parse: small green tick + the expanded "Ctrl + Shift + Enter" form.
+/// - Invalid parse: small red X + the [`HotkeySpec::parse`] error message.
+///
+/// `extra_error` is rendered after the parse preview and is intended for
+/// errors that come from the registration layer (e.g. "duplicate of binding
+/// #N", "register failed"), which the parser can't detect on its own.
+#[allow(dead_code)] // wired in the next commit
+pub fn hotkey_input(
+    ui: &mut Ui,
+    theme: Theme,
+    buf: &mut String,
+    width: f32,
+    extra_error: Option<&str>,
+) -> HotkeyInputResult {
+    let t = theme::tokens();
+    let p = theme::palette(theme);
+
+    let response = ui.add_sized([width, 28.0], TextEdit::singleline(buf));
+    let changed = response.changed();
+
+    let trimmed = buf.trim();
+    let parsed = (!trimmed.is_empty()).then(|| HotkeySpec::parse(trimmed));
+
+    ui.add_space(t.space_xs);
+    match parsed.as_ref() {
+        Some(Ok(spec)) => {
+            ui.label(
+                RichText::new(format!("✓ {}", spec.to_human()))
+                    .small()
+                    .color(p.success),
+            );
+        }
+        Some(Err(err)) => {
+            ui.label(
+                RichText::new(format!("✗ {err}"))
+                    .small()
+                    .color(p.error),
+            );
+        }
+        None => {
+            // Reserve the line height so the layout doesn't jump when the
+            // user starts typing.
+            ui.label(RichText::new(" ").small());
+        }
+    }
+
+    if let Some(err) = extra_error {
+        ui.label(
+            RichText::new(format!("⚠ {err}"))
+                .small()
+                .color(p.error),
+        );
+    }
+
+    HotkeyInputResult {
+        changed,
+        spec: parsed.and_then(|r| r.ok()),
+        response,
+    }
+}
+
+/// One-line legend for the hotkey input format. Render once near the top of a
+/// section that contains hotkey fields so the user can learn the AHK
+/// shorthand without having to memorise it.
+#[allow(dead_code)] // wired in the next commit
+pub fn hotkey_cheatsheet(ui: &mut Ui, theme: Theme) {
+    let p = theme::palette(theme);
+    ui.label(
+        RichText::new(
+            "Modifiers: ^ Ctrl  ·  + Shift  ·  ! Alt  ·  # Super     \
+             Keys: A–Z, 0–9, F1–F24, Enter, Tab, Space, Esc, Up/Down/Left/Right, …",
+        )
+        .small()
+        .color(p.ink_soft),
+    );
 }
 
 /// Build the egui::Id a focusable settings field should use. Search results
