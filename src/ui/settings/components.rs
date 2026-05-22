@@ -306,7 +306,6 @@ pub fn hotkey_cheatsheet(ui: &mut Ui, theme: Theme) {
 /// window-process matching has a real .exe to compare against.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PickerMode {
-    #[allow(dead_code)] // constructed by the Launch.command wiring in the next commit
     Lnk,
     ResolvedExe,
 }

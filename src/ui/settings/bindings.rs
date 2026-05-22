@@ -220,7 +220,7 @@ fn action_editor(
     match action {
         Action::Launch { command } => {
             c::field_row(ui, theme, "Command", |ui| {
-                ui.add(egui::TextEdit::singleline(command).desired_width(f32::INFINITY));
+                c::app_picker(ui, theme, command, picker, c::PickerMode::Lnk);
             });
         }
         Action::Url { url } => {
