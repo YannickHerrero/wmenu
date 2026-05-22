@@ -6,6 +6,8 @@ pub mod general;
 pub mod launcher;
 
 use eframe::egui;
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo_matcher::{Config, Matcher, Utf32Str};
 
 use crate::app::App;
 use crate::ui::theme;
@@ -37,7 +39,6 @@ pub struct SearchEntry {
 
 /// All search entries from every page, concatenated. Bindings are dynamic so
 /// they're handled separately at search time.
-#[allow(dead_code)] // consumed by the search-results view in the next commit
 pub fn static_entries() -> Vec<SearchEntry> {
     let mut v = Vec::new();
     v.extend_from_slice(general::ENTRIES);
@@ -46,6 +47,61 @@ pub fn static_entries() -> Vec<SearchEntry> {
     v.extend_from_slice(amphetamine::ENTRIES);
     v.extend_from_slice(about::ENTRIES);
     v
+}
+
+/// A single search hit ready for rendering. Wraps a [`SearchEntry`] with the
+/// score (for sorting) and an optional dynamic detail (used for user
+/// bindings whose label isn't known until config is loaded).
+struct SearchHit {
+    page: Page,
+    section: String,
+    label: String,
+    focus_id: Option<&'static str>,
+    score: u32,
+}
+
+fn search_settings(query: &str, app: &App) -> Vec<SearchHit> {
+    let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
+    let mut matcher = Matcher::new(Config::DEFAULT);
+    let mut buf = Vec::new();
+    let mut hits: Vec<SearchHit> = Vec::new();
+
+    for entry in static_entries() {
+        // Concatenate label + keywords into one haystack so a match on any of
+        // them surfaces the entry.
+        let haystack = std::iter::once(entry.label)
+            .chain(entry.keywords.iter().copied())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if let Some(score) = pattern.score(Utf32Str::new(&haystack, &mut buf), &mut matcher) {
+            hits.push(SearchHit {
+                page: entry.page,
+                section: entry.section.to_string(),
+                label: entry.label.to_string(),
+                focus_id: entry.focus_id,
+                score,
+            });
+        }
+    }
+
+    // Dynamic per-binding entries: surface each user binding by its label so
+    // typing the binding name jumps straight to the page.
+    for binding in &app.cfg.bindings {
+        let haystack = format!("{} {} binding hotkey", binding.label, binding.key);
+        if let Some(score) = pattern.score(Utf32Str::new(&haystack, &mut buf), &mut matcher) {
+            hits.push(SearchHit {
+                page: Page::Bindings,
+                section: "Bindings".to_string(),
+                label: format!("{} ({})", binding.label, binding.key),
+                focus_id: None,
+                score,
+            });
+        }
+    }
+
+    hits.sort_by(|a, b| b.score.cmp(&a.score));
+    hits.truncate(40);
+    hits
 }
 
 pub fn render(app: &mut App, child_ctx: &egui::Context) {
@@ -142,17 +198,103 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
                 });
 
             let before = config_signature(&app.cfg);
-            match app.settings_page {
-                Page::General => general::show(app, ui),
-                Page::Launcher => launcher::show(app, ui),
-                Page::Bindings => bindings::show(app, ui),
-                Page::Amphetamine => amphetamine::show(app, ui),
-                Page::About => about::show(app, ui),
+            if app.settings_search.trim().is_empty() {
+                match app.settings_page {
+                    Page::General => general::show(app, ui),
+                    Page::Launcher => launcher::show(app, ui),
+                    Page::Bindings => bindings::show(app, ui),
+                    Page::Amphetamine => amphetamine::show(app, ui),
+                    Page::About => about::show(app, ui),
+                }
+            } else {
+                search_results_view(ui, app);
             }
             if config_signature(&app.cfg) != before {
                 app.settings_dirty = true;
             }
         });
+}
+
+/// Renders the search results list (page breadcrumb + label, grouped order
+/// preserved from the matcher's score). Clicking a row jumps to the
+/// matching page and clears the search.
+fn search_results_view(ui: &mut egui::Ui, app: &mut App) {
+    let theme = app.cfg.theme;
+    let t = theme::tokens();
+    let p = theme::palette(theme);
+    let hits = search_settings(&app.settings_search, app);
+
+    components::page_frame(ui, theme, |ui| {
+        components::page_header(
+            ui,
+            theme,
+            "Search",
+            Some(&format!(
+                "{} match{} for \"{}\"",
+                hits.len(),
+                if hits.len() == 1 { "" } else { "es" },
+                app.settings_search
+            )),
+        );
+
+        let mut jump: Option<(Page, Option<&'static str>)> = None;
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if hits.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No settings match.")
+                            .color(p.ink_soft)
+                            .size(t.font_body),
+                    );
+                    return;
+                }
+                for hit in &hits {
+                    let row_h = 40.0;
+                    let (rect, response) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), row_h),
+                        egui::Sense::click(),
+                    );
+                    let hovered = response.hovered();
+                    let bg = if hovered { p.muted } else { p.paper };
+                    ui.painter().rect_filled(
+                        rect,
+                        egui::CornerRadius::same(t.radius_sm as u8),
+                        bg,
+                    );
+                    let breadcrumb =
+                        format!("{} › {}", page_label(hit.page), hit.section);
+                    ui.painter().text(
+                        egui::pos2(rect.left() + t.space_md, rect.top() + t.space_sm),
+                        egui::Align2::LEFT_TOP,
+                        &breadcrumb,
+                        egui::FontId::proportional(t.font_section_title),
+                        p.ink_soft,
+                    );
+                    ui.painter().text(
+                        egui::pos2(rect.left() + t.space_md, rect.bottom() - t.space_sm),
+                        egui::Align2::LEFT_BOTTOM,
+                        &hit.label,
+                        egui::FontId::proportional(t.font_body),
+                        p.ink,
+                    );
+                    if response.clicked() {
+                        jump = Some((hit.page, hit.focus_id));
+                    }
+                    ui.add_space(t.space_xs);
+                }
+            });
+
+        if let Some((page, _focus_id)) = jump {
+            app.settings_page = page;
+            app.settings_search.clear();
+        }
+    });
+}
+
+fn page_label(page: Page) -> &'static str {
+    PAGES.iter().find(|(p, _)| *p == page).map(|(_, l)| *l).unwrap_or("")
 }
 
 /// The search input in the top header. Stretches to fill the remaining
