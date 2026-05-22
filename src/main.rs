@@ -12,6 +12,7 @@ mod hotkey;
 mod hotkey_spec;
 mod index;
 mod launch;
+mod lnk;
 mod logging;
 mod matcher;
 mod mru;
