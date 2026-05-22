@@ -304,9 +304,9 @@ pub fn hotkey_cheatsheet(ui: &mut Ui, theme: Theme) {
 /// underlying `.exe` target. `Launch` actions want `Lnk` (cmd start handles
 /// shortcuts transparently), `FocusOrLaunch` wants `ResolvedExe` so its
 /// window-process matching has a real .exe to compare against.
-#[allow(dead_code)] // wired in the bindings page in a later commit
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PickerMode {
+    #[allow(dead_code)] // constructed by the Launch.command wiring in the next commit
     Lnk,
     ResolvedExe,
 }
@@ -334,7 +334,6 @@ fn pick_value(entry: &AppEntry, mode: PickerMode) -> String {
 /// External state the picker needs each frame. Borrows rather than ownership
 /// so the caller can keep mutating the same `App` fields elsewhere in the
 /// frame without lifetimes getting in the way.
-#[allow(dead_code)] // fields consumed by following commits
 pub struct AppPickerCtx<'a> {
     pub index: &'a SharedIndex,
     pub matcher: &'a mut Engine,
@@ -345,7 +344,6 @@ pub struct AppPickerCtx<'a> {
 }
 
 /// Per-picker UI state stashed in `egui::Memory::data`.
-#[allow(dead_code)] // `selected` is consumed by the keyboard nav commit
 #[derive(Clone, Default)]
 struct PickerState {
     /// Whether the dropdown is currently open. Toggled by focus and Esc.
@@ -360,7 +358,6 @@ const PICKER_MAX_RESULTS: usize = 10;
 /// Text input with an inline autocomplete dropdown of indexed Start-Menu
 /// apps. The buffer stays editable for arbitrary manual paths; the dropdown
 /// only opens when the field has focus and there's text to match against.
-#[allow(dead_code)] // wired in the bindings page in a later commit
 pub fn app_picker(
     ui: &mut Ui,
     theme: Theme,

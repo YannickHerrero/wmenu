@@ -54,11 +54,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         let mut remove: Option<usize> = None;
         let errors = app.binding_errors.clone();
 
+        // Split borrows so the picker (which needs &mut matcher) can run
+        // alongside iter_mut on the bindings Vec.
+        let bindings = &mut app.cfg.bindings;
+        let matcher = &mut app.matcher;
+        let index = &app.index;
+        let mru = &app.mru;
+
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
-                for (idx, binding) in app.cfg.bindings.iter_mut().enumerate() {
+                for (idx, binding) in bindings.iter_mut().enumerate() {
                     let key_err = errors
                         .iter()
                         .find(|e| e.index == idx)
@@ -74,7 +81,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                                 idx,
                             );
                             ui.add_space(theme::tokens().space_sm);
-                            action_editor(ui, theme, &mut binding.action);
+                            let mut picker_ctx = c::AppPickerCtx {
+                                index,
+                                matcher: &mut *matcher,
+                                mru,
+                                state_id: egui::Id::new((idx, "picker")),
+                            };
+                            action_editor(ui, theme, &mut binding.action, &mut picker_ctx);
                         });
                     });
                     ui.add_space(theme::tokens().space_sm);
@@ -143,7 +156,12 @@ fn binding_header(
     });
 }
 
-fn action_editor(ui: &mut egui::Ui, theme: Theme, action: &mut Action) {
+fn action_editor(
+    ui: &mut egui::Ui,
+    theme: Theme,
+    action: &mut Action,
+    picker: &mut c::AppPickerCtx<'_>,
+) {
     let p = theme::palette(theme);
     let t = theme::tokens();
 
@@ -235,7 +253,7 @@ fn action_editor(ui: &mut egui::Ui, theme: Theme, action: &mut Action) {
             launch_args,
         } => {
             c::field_row(ui, theme, "Exe path", |ui| {
-                ui.add(egui::TextEdit::singleline(exe_path).desired_width(f32::INFINITY));
+                c::app_picker(ui, theme, exe_path, picker, c::PickerMode::ResolvedExe);
             });
             c::field_row(ui, theme, "Match basename only", |ui| {
                 ui.checkbox(match_basename, "");
