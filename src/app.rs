@@ -526,20 +526,60 @@ impl eframe::App for App {
 /// `EnumWindows` filtered to our own process. Returns `true` if the matching
 /// HWND was found and updated this frame; the caller uses that to gate the
 /// "already applied" cache so we keep retrying until the HWND exists.
+///
+/// Also installs a `WM_NCCALCSIZE` subclass procedure on the settings HWND
+/// that, when borderless is on, claims the top non-client strip as client
+/// area — otherwise Win32 reserves a few pixels at the top for what would
+/// have been the caption bar and DWM paints them white. Top-edge resize is
+/// the cost of that fix (corners + the other three edges still resize). The
+/// subclass is installed once per HWND; toggling borderless just flips the
+/// atomic the subclass reads.
 #[cfg(windows)]
 fn apply_settings_chrome(borderless: bool) -> bool {
     use std::cell::Cell;
+    use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
-    use windows::Win32::Foundation::{HWND, LPARAM, TRUE};
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, TRUE, WPARAM};
     use windows::Win32::System::Threading::GetCurrentProcessId;
+    use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GWL_STYLE, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
-        GetWindowThreadProcessId, HWND_TOP, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_CAPTION,
+        GetWindowThreadProcessId, HWND_TOP, NCCALCSIZE_PARAMS, SWP_FRAMECHANGED, SWP_NOMOVE,
+        SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WM_NCCALCSIZE, WS_CAPTION,
     };
     use windows::core::BOOL;
 
     const TITLE: &str = "wmenu — settings";
+    const SUBCLASS_ID: usize = 0x77_6D_65_6E; // 'wmen' — distinguishes our subclass
+
+    static BORDERLESS: AtomicBool = AtomicBool::new(false);
+    static SUBCLASSED_HWND: AtomicIsize = AtomicIsize::new(0);
+
+    /// Subclass procedure: when borderless is on, restore the top edge of
+    /// the proposed client rect to match the window rect, eating the strip
+    /// Win32 would otherwise reserve for the (absent) titlebar. All other
+    /// messages and the non-borderless case fall through to default
+    /// handling so the rest of the window keeps standard non-client behaviour
+    /// (resize on three remaining edges + four corners, hit-test, etc.).
+    unsafe extern "system" fn subclass_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        _id: usize,
+        _ref_data: usize,
+    ) -> LRESULT {
+        if msg == WM_NCCALCSIZE && wparam.0 != 0 && BORDERLESS.load(Ordering::Relaxed) {
+            unsafe {
+                let params = &mut *(lparam.0 as *mut NCCALCSIZE_PARAMS);
+                let original_top = params.rgrc[0].top;
+                let result = DefSubclassProc(hwnd, msg, wparam, lparam);
+                params.rgrc[0].top = original_top;
+                return result;
+            }
+        }
+        unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+    }
 
     thread_local! {
         static MATCH: Cell<isize> = const { Cell::new(0) };
@@ -582,6 +622,20 @@ fn apply_settings_chrome(borderless: bool) -> bool {
     }
     let hwnd = HWND(hwnd_ptr as *mut _);
 
+    // Sync the atomic before SWP_FRAMECHANGED so the subclass sees the right
+    // state on the recompute pass.
+    BORDERLESS.store(borderless, Ordering::Relaxed);
+
+    // Install the subclass once per HWND. SetWindowSubclass with a stable id
+    // is idempotent for the same HWND, but if the user closed + reopened
+    // settings, the new HWND needs its own install pass.
+    if SUBCLASSED_HWND.load(Ordering::Relaxed) != hwnd_ptr {
+        unsafe {
+            let _ = SetWindowSubclass(hwnd, Some(subclass_proc), SUBCLASS_ID, 0);
+        }
+        SUBCLASSED_HWND.store(hwnd_ptr, Ordering::Relaxed);
+    }
+
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
         let caption_bits = WS_CAPTION.0 as isize;
@@ -592,18 +646,18 @@ fn apply_settings_chrome(borderless: bool) -> bool {
         };
         if new_style != style {
             SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
-            // Tell Windows to recompute the non-client area so the titlebar
-            // actually appears/disappears without waiting for a resize event.
-            let _ = SetWindowPos(
-                hwnd,
-                Some(HWND_TOP),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
-            );
         }
+        // Always trigger a non-client recompute on toggle so the subclass'
+        // top-edge override (or the lack of it) takes effect immediately.
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOP),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        );
     }
     true
 }
