@@ -19,6 +19,21 @@ pub const ENTRIES: &[SearchEntry] = &[
     },
     SearchEntry {
         page: Page::General,
+        section: "Appearance",
+        label: "Borderless settings window",
+        keywords: &[
+            "borderless",
+            "titlebar",
+            "chrome",
+            "decorations",
+            "frameless",
+            "settings",
+            "window",
+        ],
+        focus_id: Some("general_borderless"),
+    },
+    SearchEntry {
+        page: Page::General,
         section: "Startup",
         label: "Launch with Windows",
         keywords: &["autostart", "startup", "boot", "windows", "launch"],
@@ -59,6 +74,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 if app.cfg.theme != prev {
                     theme::apply(ui.ctx(), app.cfg.theme);
                 }
+            });
+            c::field_row(ui, theme, "Borderless settings window", |ui| {
+                let resp = ui.checkbox(&mut app.cfg.settings_borderless, "");
+                c::consume_focus_target(
+                    &resp,
+                    &mut app.focus_target,
+                    "general_borderless",
+                );
             });
         });
 
