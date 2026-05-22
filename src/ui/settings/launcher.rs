@@ -53,28 +53,25 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         );
 
         c::section(ui, theme, "Hotkeys", |ui| {
-            if hotkey_row(
+            c::hotkey_cheatsheet(ui, theme);
+            ui.add_space(theme::tokens().space_sm);
+
+            hotkey_row(
                 ui,
                 theme,
                 app,
                 "launcher_hotkey_input",
                 "Launcher hotkey",
-                "e.g. Alt+Space, Ctrl+Alt+Space",
                 Field::Launcher,
-            ) {
-                pending_apply(app, ApplyHotkey::Launcher);
-            }
-            if hotkey_row(
+            );
+            hotkey_row(
                 ui,
                 theme,
                 app,
                 "launcher_omakase_hotkey_input",
                 "Omakase hotkey",
-                "e.g. Alt+Super+Space (Super = Win key)",
                 Field::Omakase,
-            ) {
-                pending_apply(app, ApplyHotkey::Omakase);
-            }
+            );
         });
 
         c::section(ui, theme, "Indexing", |ui| {
@@ -98,55 +95,50 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     });
 }
 
-enum ApplyHotkey {
-    Launcher,
-    Omakase,
-}
-
 enum Field {
     Launcher,
     Omakase,
 }
 
-/// Returns `true` if the user clicked the row's Apply button.
+/// Renders one hotkey row using the shared `hotkey_input` widget. Commits the
+/// canonical AHK form to the config the moment the user types a valid
+/// combination; mid-typing invalid states stay only in the UI buffer so the
+/// active launcher / omakase shortcut can't be broken by an in-progress edit.
 fn hotkey_row(
     ui: &mut egui::Ui,
     theme: Theme,
     app: &mut App,
     focus_name: &'static str,
     label: &str,
-    hint: &str,
     field: Field,
-) -> bool {
-    let mut applied = false;
+) {
     c::field_row(ui, theme, label, |ui| {
-        let apply_btn_w = 60.0;
         let avail = ui.available_width();
-        let resp = match field {
-            Field::Launcher => ui.add_sized(
-                [avail - apply_btn_w - 8.0, 24.0],
-                egui::TextEdit::singleline(&mut app.hotkey_input),
-            ),
-            Field::Omakase => ui.add_sized(
-                [avail - apply_btn_w - 8.0, 24.0],
-                egui::TextEdit::singleline(&mut app.omakase_hotkey_input),
-            ),
+        let buf = match field {
+            Field::Launcher => &mut app.hotkey_input,
+            Field::Omakase => &mut app.omakase_hotkey_input,
         };
-        c::consume_focus_target(&resp, &mut app.focus_target, focus_name);
-        if ui
-            .add_sized([apply_btn_w, 24.0], egui::Button::new("Apply"))
-            .clicked()
-        {
-            applied = true;
+        let result = c::hotkey_input(ui, theme, buf, avail, None);
+        c::consume_focus_target(&result.response, &mut app.focus_target, focus_name);
+        if let Some(spec) = result.spec {
+            let normalized = spec.to_ahk();
+            match field {
+                Field::Launcher => {
+                    if app.cfg.launcher.hotkey.0 != normalized {
+                        app.cfg.launcher.hotkey.0 = normalized;
+                    }
+                }
+                Field::Omakase => {
+                    if app.cfg.launcher.omakase_hotkey.0 != normalized {
+                        app.cfg.launcher.omakase_hotkey.0 = normalized;
+                    }
+                }
+            }
         }
     });
-    indent_under_label(ui, |ui| {
-        ui.label(
-            egui::RichText::new(hint)
-                .small()
-                .color(theme::palette(theme).ink_soft),
-        );
-    });
+
+    // Registration-time errors (reserved / OS-level conflicts) live under the
+    // field, aligned with the input column.
     let err = match field {
         Field::Launcher => app.hotkey_error.clone(),
         Field::Omakase => app.omakase_hotkey_error.clone(),
@@ -156,7 +148,6 @@ fn hotkey_row(
             c::inline_error(ui, theme, &e);
         });
     }
-    applied
 }
 
 fn extra_dirs(ui: &mut egui::Ui, _theme: Theme, app: &mut App) {
@@ -189,7 +180,7 @@ fn extra_dirs(ui: &mut egui::Ui, _theme: Theme, app: &mut App) {
     }
 }
 
-/// Indent helper for hint / error text that should align with the right-hand
+/// Indent helper for error text that should align with the right-hand
 /// column of a [`field_row`] (i.e. under the input, not under the label).
 fn indent_under_label(ui: &mut egui::Ui, body: impl FnOnce(&mut egui::Ui)) {
     let t = theme::tokens();
@@ -198,29 +189,4 @@ fn indent_under_label(ui: &mut egui::Ui, body: impl FnOnce(&mut egui::Ui)) {
         ui.vertical(body);
     });
     ui.add_space(t.space_xs);
-}
-
-fn pending_apply(app: &mut App, which: ApplyHotkey) {
-    match which {
-        ApplyHotkey::Launcher => {
-            let spec = app.hotkey_input.clone();
-            match app.hotkey.set(&spec) {
-                Ok(_) => {
-                    app.cfg.launcher.hotkey.0 = spec;
-                    app.hotkey_error = None;
-                }
-                Err(e) => app.hotkey_error = Some(format!("{e}")),
-            }
-        }
-        ApplyHotkey::Omakase => {
-            let spec = app.omakase_hotkey_input.clone();
-            match app.hotkey.set_omakase(&spec) {
-                Ok(_) => {
-                    app.cfg.launcher.omakase_hotkey.0 = spec;
-                    app.omakase_hotkey_error = None;
-                }
-                Err(e) => app.omakase_hotkey_error = Some(format!("{e}")),
-            }
-        }
-    }
 }

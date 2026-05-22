@@ -191,17 +191,23 @@ impl App {
 
     pub(crate) fn apply_reloaded(&mut self, ctx: &egui::Context) {
         theme::apply(ctx, self.cfg.theme);
-        if let Err(e) = self.hotkey.set(&self.cfg.launcher.hotkey.0) {
-            tracing::warn!("re-apply launcher hotkey: {e}");
-        } else {
-            self.hotkey_input = self.cfg.launcher.hotkey.0.clone();
-            self.hotkey_error = None;
+        // The settings UI owns hotkey_input / omakase_hotkey_input as
+        // user-typed buffers; we don't sync them back from cfg here so that a
+        // mid-typing apply (after auto-save) doesn't trample whatever the
+        // user is still composing.
+        match self.hotkey.set(&self.cfg.launcher.hotkey.0) {
+            Ok(_) => self.hotkey_error = None,
+            Err(e) => {
+                tracing::warn!("re-apply launcher hotkey: {e}");
+                self.hotkey_error = Some(format!("{e}"));
+            }
         }
-        if let Err(e) = self.hotkey.set_omakase(&self.cfg.launcher.omakase_hotkey.0) {
-            tracing::warn!("re-apply omakase hotkey: {e}");
-        } else {
-            self.omakase_hotkey_input = self.cfg.launcher.omakase_hotkey.0.clone();
-            self.omakase_hotkey_error = None;
+        match self.hotkey.set_omakase(&self.cfg.launcher.omakase_hotkey.0) {
+            Ok(_) => self.omakase_hotkey_error = None,
+            Err(e) => {
+                tracing::warn!("re-apply omakase hotkey: {e}");
+                self.omakase_hotkey_error = Some(format!("{e}"));
+            }
         }
         let errs = self.hotkey.set_bindings(&self.cfg.bindings);
         for err in &errs {
