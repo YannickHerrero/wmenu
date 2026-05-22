@@ -24,6 +24,11 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
     let t = theme::tokens();
     let p = theme::palette(app.cfg.theme);
 
+    // Global shortcuts that work even while a field is focused.
+    if child_ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::F)) {
+        app.settings_search_focus_request = true;
+    }
+
     handle_sidebar_keys(app, child_ctx);
 
     #[allow(deprecated)]
@@ -73,6 +78,12 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
                                                     .color(p.ink_soft),
                                             );
                                         }
+
+                                        // Search input fills the remaining
+                                        // horizontal slack between the title
+                                        // and the right-side controls.
+                                        ui.add_space(t.space_md);
+                                        search_input(ui, app, child_ctx);
                                     },
                                 );
                             });
@@ -114,6 +125,34 @@ pub fn render(app: &mut App, child_ctx: &egui::Context) {
                 app.settings_dirty = true;
             }
         });
+}
+
+/// The search input in the top header. Stretches to fill the remaining
+/// horizontal slack inside its right-to-left layout. Honours the
+/// `settings_search_focus_request` flag set by `Ctrl+F`.
+fn search_input(ui: &mut egui::Ui, app: &mut App, ctx: &egui::Context) {
+    let t = theme::tokens();
+    let id = egui::Id::new("settings_search_input");
+    let avail = ui.available_width();
+    let width = avail.clamp(160.0, 360.0);
+    let resp = ui.add_sized(
+        [width, 28.0],
+        egui::TextEdit::singleline(&mut app.settings_search)
+            .hint_text("Search settings…  Ctrl+F")
+            .id(id),
+    );
+    if app.settings_search_focus_request {
+        resp.request_focus();
+        app.settings_search_focus_request = false;
+    }
+    // Esc clears the search when the search input itself is focused.
+    let focused = ctx.memory(|m| m.focused()) == Some(id);
+    if focused
+        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+    {
+        app.settings_search.clear();
+    }
+    let _ = t;
 }
 
 /// Arrow / j / k navigation across the sidebar. Only fires when no text-input

@@ -59,6 +59,8 @@ pub struct App {
     pub settings_page: settings::Page,
     pub settings_dirty: bool,
     pub settings_status: Option<String>,
+    pub settings_search: String,
+    pub settings_search_focus_request: bool,
     pub binding_errors: Vec<BindingError>,
 }
 
@@ -142,6 +144,8 @@ impl App {
             settings_page: settings::Page::default(),
             settings_dirty: false,
             settings_status: None,
+            settings_search: String::new(),
+            settings_search_focus_request: false,
             binding_errors,
         }
     }
