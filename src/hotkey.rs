@@ -6,6 +6,13 @@ use global_hotkey::hotkey::HotKey;
 use tracing::warn;
 
 use crate::config::Binding;
+use crate::hotkey_spec::HotkeySpec;
+
+fn parse(spec: &str) -> Result<HotKey> {
+    HotkeySpec::parse(spec)
+        .map(HotkeySpec::to_global_hotkey)
+        .with_context(|| format!("parse hotkey: {spec}"))
+}
 
 #[derive(Debug, Clone)]
 pub struct BindingError {
@@ -42,9 +49,7 @@ impl Manager {
         if let Some(old) = self.current.take() {
             let _ = self.manager.unregister(old);
         }
-        let hotkey: HotKey = spec
-            .parse()
-            .with_context(|| format!("parse hotkey: {spec}"))?;
+        let hotkey = parse(spec)?;
         self.manager
             .register(hotkey)
             .with_context(|| format!("register hotkey: {spec}"))?;
@@ -61,9 +66,7 @@ impl Manager {
         if let Some(old) = self.omakase.take() {
             let _ = self.manager.unregister(old);
         }
-        let hotkey: HotKey = spec
-            .parse()
-            .with_context(|| format!("parse omakase hotkey: {spec}"))?;
+        let hotkey = parse(spec).with_context(|| format!("parse omakase hotkey: {spec}"))?;
         self.manager
             .register(hotkey)
             .with_context(|| format!("register omakase hotkey: {spec}"))?;
@@ -81,7 +84,7 @@ impl Manager {
             if self.escape.is_some() {
                 return;
             }
-            let hotkey: HotKey = match "Escape".parse() {
+            let hotkey = match parse("Escape") {
                 Ok(h) => h,
                 Err(e) => {
                     warn!("parse Escape hotkey: {e}");
@@ -125,7 +128,7 @@ impl Manager {
             if trimmed.is_empty() {
                 continue;
             }
-            let hotkey: HotKey = match trimmed.parse() {
+            let hotkey = match parse(trimmed) {
                 Ok(h) => h,
                 Err(e) => {
                     errors.push(BindingError {
