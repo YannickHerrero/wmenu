@@ -363,16 +363,32 @@ fn search_input(ui: &mut egui::Ui, app: &mut App, ctx: &egui::Context) {
     let _ = t;
 }
 
-/// Arrow / j / k navigation across the sidebar. Only fires when no text-input
-/// widget is currently capturing keystrokes, so typing inside a field is
-/// unaffected.
+/// hjkl + arrow-key navigation. Splits between two zones depending on which
+/// widget egui currently owns focus on:
+///
+/// - **Sidebar zone** (nothing focused): j/k/Up/Down cycle pages, Home/End
+///   jump first/last, l/Right hands focus to the active page's first widget.
+/// - **Content zone** (some widget focused) and *not* typing into a text
+///   field: h/Left surrenders focus and returns to the sidebar.
 fn handle_sidebar_keys(app: &mut App, ctx: &egui::Context) {
-    if ctx.egui_wants_keyboard_input() {
-        return;
+    let in_text_input = ctx.egui_wants_keyboard_input();
+    let sidebar_focused = ctx.memory(|m| m.focused()).is_none();
+
+    if sidebar_focused {
+        handle_sidebar_zone(app, ctx);
+    } else if !in_text_input {
+        handle_content_zone(ctx);
     }
+}
+
+fn handle_sidebar_zone(app: &mut App, ctx: &egui::Context) {
     let len = PAGES.len();
-    let current = PAGES.iter().position(|(p, _)| *p == app.settings_page).unwrap_or(0);
+    let current = PAGES
+        .iter()
+        .position(|(p, _)| *p == app.settings_page)
+        .unwrap_or(0);
     let mut next = current;
+    let mut jump_to_content = false;
     ctx.input_mut(|i| {
         if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
             || i.consume_key(egui::Modifiers::NONE, egui::Key::J)
@@ -390,9 +406,43 @@ fn handle_sidebar_keys(app: &mut App, ctx: &egui::Context) {
         if i.consume_key(egui::Modifiers::NONE, egui::Key::End) {
             next = len - 1;
         }
+        if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight)
+            || i.consume_key(egui::Modifiers::NONE, egui::Key::L)
+        {
+            jump_to_content = true;
+        }
     });
     if next != current {
         app.settings_page = PAGES[next].0;
+    }
+    if jump_to_content
+        && let Some(id) = first_focus_for(app.settings_page)
+    {
+        app.focus_target = Some(id);
+    }
+}
+
+fn handle_content_zone(ctx: &egui::Context) {
+    let back = ctx.input_mut(|i| {
+        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft)
+            || i.consume_key(egui::Modifiers::NONE, egui::Key::H)
+    });
+    if back {
+        ctx.memory_mut(|m| {
+            if let Some(id) = m.focused() {
+                m.surrender_focus(id);
+            }
+        });
+    }
+}
+
+fn first_focus_for(page: Page) -> Option<&'static str> {
+    match page {
+        Page::General => general::FIRST_FOCUS,
+        Page::Launcher => launcher::FIRST_FOCUS,
+        Page::Bindings => bindings::FIRST_FOCUS,
+        Page::Amphetamine => amphetamine::FIRST_FOCUS,
+        Page::About => about::FIRST_FOCUS,
     }
 }
 
