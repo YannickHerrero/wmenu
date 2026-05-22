@@ -1,6 +1,7 @@
 pub mod about;
 pub mod amphetamine;
 pub mod bindings;
+pub mod components;
 pub mod general;
 pub mod launcher;
 
