@@ -2,7 +2,17 @@ use eframe::egui;
 
 use crate::app::App;
 use crate::ui::settings::components as c;
+use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
+
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+pub const ENTRIES: &[SearchEntry] = &[SearchEntry {
+    page: Page::Amphetamine,
+    section: "Cursor wiggle",
+    label: "Keep Windows awake",
+    keywords: &["amphetamine", "awake", "screensaver", "cursor", "wiggle", "idle", "screen"],
+    focus_id: Some("amphetamine_toggle"),
+}];
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;

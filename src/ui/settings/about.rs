@@ -2,7 +2,26 @@ use eframe::egui;
 
 use crate::app::App;
 use crate::ui::settings::components as c;
+use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
+
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+pub const ENTRIES: &[SearchEntry] = &[
+    SearchEntry {
+        page: Page::About,
+        section: "Build",
+        label: "Version",
+        keywords: &["version", "about", "build", "wmenu"],
+        focus_id: None,
+    },
+    SearchEntry {
+        page: Page::About,
+        section: "Files",
+        label: "Config file",
+        keywords: &["config", "file", "path", "toml", "settings", "folder", "open"],
+        focus_id: None,
+    },
+];
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;

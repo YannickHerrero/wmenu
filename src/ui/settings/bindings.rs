@@ -3,7 +3,19 @@ use eframe::egui;
 use crate::app::App;
 use crate::config::{Action, Binding, ShellKind, Theme};
 use crate::ui::settings::components as c;
+use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
+
+/// Static jump-to-page entry. Individual user bindings are matched at search
+/// time by reading `app.cfg.bindings` directly, since they're dynamic.
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+pub const ENTRIES: &[SearchEntry] = &[SearchEntry {
+    page: Page::Bindings,
+    section: "Bindings",
+    label: "Bindings",
+    keywords: &["binding", "hotkey", "shortcut", "key", "action", "launch", "url", "script"],
+    focus_id: None,
+}];
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;

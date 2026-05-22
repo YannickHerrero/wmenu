@@ -20,6 +20,34 @@ pub enum Page {
     About,
 }
 
+/// A single searchable setting. Pages export a static slice of these so the
+/// top-bar search input can offer "jump to this field" results.
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+#[derive(Debug, Clone, Copy)]
+pub struct SearchEntry {
+    pub page: Page,
+    pub section: &'static str,
+    pub label: &'static str,
+    pub keywords: &'static [&'static str],
+    /// Optional widget id the focus hand-off should attempt to focus after
+    /// jumping to the target page. Pages create the matching id via
+    /// `egui::Id::new(focus_id)`.
+    pub focus_id: Option<&'static str>,
+}
+
+/// All search entries from every page, concatenated. Bindings are dynamic so
+/// they're handled separately at search time.
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+pub fn static_entries() -> Vec<SearchEntry> {
+    let mut v = Vec::new();
+    v.extend_from_slice(general::ENTRIES);
+    v.extend_from_slice(launcher::ENTRIES);
+    v.extend_from_slice(bindings::ENTRIES);
+    v.extend_from_slice(amphetamine::ENTRIES);
+    v.extend_from_slice(about::ENTRIES);
+    v
+}
+
 pub fn render(app: &mut App, child_ctx: &egui::Context) {
     let t = theme::tokens();
     let p = theme::palette(app.cfg.theme);

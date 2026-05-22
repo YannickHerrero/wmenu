@@ -3,7 +3,33 @@ use eframe::egui;
 use crate::app::App;
 use crate::config::Theme;
 use crate::ui::settings::components as c;
+use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
+
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+pub const ENTRIES: &[SearchEntry] = &[
+    SearchEntry {
+        page: Page::General,
+        section: "Appearance",
+        label: "Theme",
+        keywords: &["theme", "appearance", "color", "colour", "dark", "light", "paper", "ink"],
+        focus_id: Some("general_theme"),
+    },
+    SearchEntry {
+        page: Page::General,
+        section: "Startup",
+        label: "Launch with Windows",
+        keywords: &["autostart", "startup", "boot", "windows", "launch"],
+        focus_id: Some("general_autostart"),
+    },
+    SearchEntry {
+        page: Page::General,
+        section: "Startup",
+        label: "Start minimized to tray",
+        keywords: &["minimized", "tray", "startup", "background", "hidden"],
+        focus_id: Some("general_start_minimized"),
+    },
+];
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;

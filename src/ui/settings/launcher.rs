@@ -5,7 +5,40 @@ use eframe::egui;
 use crate::app::App;
 use crate::config::Theme;
 use crate::ui::settings::components as c;
+use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
+
+#[allow(dead_code)] // consumed by the search-results view in the next commit
+pub const ENTRIES: &[SearchEntry] = &[
+    SearchEntry {
+        page: Page::Launcher,
+        section: "Hotkeys",
+        label: "Launcher hotkey",
+        keywords: &["hotkey", "launcher", "shortcut", "global", "alt", "space"],
+        focus_id: Some("launcher_hotkey_input"),
+    },
+    SearchEntry {
+        page: Page::Launcher,
+        section: "Hotkeys",
+        label: "Omakase hotkey",
+        keywords: &["hotkey", "omakase", "shortcut", "global", "system", "menu"],
+        focus_id: Some("launcher_omakase_hotkey_input"),
+    },
+    SearchEntry {
+        page: Page::Launcher,
+        section: "Indexing",
+        label: "Scan interval (minutes)",
+        keywords: &["scan", "interval", "index", "start menu", "refresh", "minutes"],
+        focus_id: Some("launcher_scan_interval"),
+    },
+    SearchEntry {
+        page: Page::Launcher,
+        section: "Indexing",
+        label: "Extra directories",
+        keywords: &["extra", "directories", "folders", "index", "paths", "start menu"],
+        focus_id: Some("launcher_extra_dirs"),
+    },
+];
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;
