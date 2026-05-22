@@ -237,6 +237,14 @@ impl App {
             },
         );
         if close_requested {
+            // Flush any pending debounced edit so closing the window can't
+            // drop unsaved changes.
+            if self.last_edit_at.is_some()
+                && let Err(e) = self.save_config()
+            {
+                tracing::warn!("flush on close: {e}");
+            }
+            self.last_edit_at = None;
             self.settings_open = false;
         }
     }
