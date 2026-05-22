@@ -2,12 +2,12 @@ use eframe::egui;
 
 use crate::app::App;
 use crate::config::Theme;
-use crate::ui::settings::components::{self as c};
+use crate::ui::settings::components as c;
 use crate::ui::theme;
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;
-    page_frame(ui, theme, |ui| {
+    c::page_frame(ui, theme, |ui| {
         c::page_header(ui, theme, "General", Some("Appearance and startup behaviour."));
 
         c::section(ui, theme, "Appearance", |ui| {
@@ -42,23 +42,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             });
         });
     });
-}
-
-fn page_frame(ui: &mut egui::Ui, theme: Theme, body: impl FnOnce(&mut egui::Ui)) {
-    let t = theme::tokens();
-    let p = theme::palette(theme);
-    egui::Frame::new()
-        .fill(p.paper)
-        .inner_margin(egui::Margin {
-            left: t.space_xl as i8,
-            right: t.space_xl as i8,
-            top: 0,
-            bottom: t.space_lg as i8,
-        })
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            body(ui);
-        });
 }
 
 fn theme_label(t: Theme) -> &'static str {

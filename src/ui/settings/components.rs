@@ -24,6 +24,26 @@ pub enum Kind {
     Error,
 }
 
+/// Wraps the body of a settings page in a consistent outer gutter so the
+/// content doesn't stick to the panel edges. Every page should call this
+/// once at the top.
+pub fn page_frame(ui: &mut Ui, theme: Theme, body: impl FnOnce(&mut Ui)) {
+    let t = theme::tokens();
+    let p = theme::palette(theme);
+    Frame::new()
+        .fill(p.paper)
+        .inner_margin(Margin {
+            left: t.space_xl as i8,
+            right: t.space_xl as i8,
+            top: 0,
+            bottom: t.space_lg as i8,
+        })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            body(ui);
+        });
+}
+
 /// Large page heading with optional subtitle and a hairline divider beneath.
 pub fn page_header(ui: &mut Ui, theme: Theme, title: &str, subtitle: Option<&str>) {
     let t = theme::tokens();
