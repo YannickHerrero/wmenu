@@ -333,21 +333,24 @@ struct PickerState {
     selected: usize,
 }
 
+/// Maximum number of matching apps shown in the dropdown.
+const PICKER_MAX_RESULTS: usize = 10;
+
 /// Text input with an inline autocomplete dropdown of indexed Start-Menu
 /// apps. The buffer stays editable for arbitrary manual paths; the dropdown
 /// only opens when the field has focus and there's text to match against.
-///
-/// Skeleton commit: renders only the input. The next few commits add the
-/// matcher-driven results, keyboard navigation, and .lnk → .exe resolution.
-#[allow(dead_code)] // wired in following commits
+#[allow(dead_code)] // wired in the bindings page in a later commit
 pub fn app_picker(
     ui: &mut Ui,
-    _theme: Theme,
+    theme: Theme,
     buf: &mut String,
     ctx: &mut AppPickerCtx<'_>,
     _mode: PickerMode,
 ) -> Response {
     let id = ctx.state_id;
+    let t = theme::tokens();
+    let p = theme::palette(theme);
+
     let mut state: PickerState = ui
         .ctx()
         .memory(|m| m.data.get_temp::<PickerState>(id).unwrap_or_default());
@@ -358,8 +361,68 @@ pub fn app_picker(
             .id(id.with("input")),
     );
 
-    // Open the dropdown whenever the input has focus. Close it on focus loss.
     state.open = response.has_focus();
+
+    if state.open {
+        let snapshot = ctx.index.load();
+        let ranked = ctx.matcher.search(buf, &snapshot.entries, ctx.mru);
+        let visible = ranked.len().min(PICKER_MAX_RESULTS);
+        if visible > 0 {
+            if state.selected >= visible {
+                state.selected = visible - 1;
+            }
+
+            let input_rect = response.rect;
+            let area_id = id.with("dropdown");
+            egui::Area::new(area_id)
+                .order(egui::Order::Foreground)
+                .fixed_pos(egui::pos2(input_rect.left(), input_rect.bottom() + t.space_xs))
+                .show(ui.ctx(), |ui| {
+                    Frame::new()
+                        .fill(p.paper)
+                        .stroke(Stroke::new(1.0, p.ink_faint))
+                        .corner_radius(CornerRadius::same(t.radius_sm as u8))
+                        .inner_margin(Margin::same(t.space_xs as i8))
+                        .show(ui, |ui| {
+                            ui.set_width(input_rect.width());
+                            for (display_idx, &entry_idx) in
+                                ranked.iter().enumerate().take(PICKER_MAX_RESULTS)
+                            {
+                                let entry = &snapshot.entries[entry_idx];
+                                let is_sel = display_idx == state.selected;
+                                let bg = if is_sel { p.accent } else { p.paper };
+                                let fg = if is_sel { p.paper } else { p.ink };
+                                let row = Frame::new()
+                                    .fill(bg)
+                                    .inner_margin(Margin::symmetric(
+                                        t.space_sm as i8,
+                                        t.space_xs as i8,
+                                    ))
+                                    .corner_radius(CornerRadius::same(2))
+                                    .show(ui, |ui| {
+                                        ui.set_width(ui.available_width());
+                                        ui.label(
+                                            RichText::new(&entry.name)
+                                                .size(t.font_body)
+                                                .color(fg),
+                                        );
+                                    });
+                                let click = ui.interact(
+                                    row.response.rect,
+                                    area_id.with(entry_idx),
+                                    Sense::click(),
+                                );
+                                if click.hovered() {
+                                    state.selected = display_idx;
+                                }
+                                if click.clicked() {
+                                    *buf = entry.path.to_string_lossy().into_owned();
+                                }
+                            }
+                        });
+                });
+        }
+    }
 
     ui.ctx().memory_mut(|m| m.data.insert_temp(id, state));
     response
