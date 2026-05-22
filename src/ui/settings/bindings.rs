@@ -2,6 +2,7 @@ use eframe::egui;
 
 use crate::app::App;
 use crate::config::{Action, Binding, ShellKind, Theme};
+use crate::index;
 use crate::ui::settings::components as c;
 use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
@@ -21,6 +22,15 @@ pub const ENTRIES: &[SearchEntry] = &[SearchEntry {
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;
+
+    // If the index hasn't been populated yet (settings opened before the
+    // launcher hotkey ever fired), kick off a scan so the app picker has
+    // something to show. spawn_scan is idempotent and runs on a background
+    // thread, so this is cheap to call repeatedly.
+    if app.index.load().entries.is_empty() {
+        index::spawn_scan(app.index.clone(), app.cfg.launcher.extra_dirs.clone());
+    }
+
     c::page_frame(ui, theme, |ui| {
         c::page_header(
             ui,
