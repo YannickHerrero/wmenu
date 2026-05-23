@@ -11,6 +11,9 @@ mod config;
 mod hotkey;
 mod hotkey_spec;
 mod index;
+// Server-side wiring lands in the next commits; the module is here now so
+// the CLI client (also in the next commit) can use ipc::send.
+mod ipc;
 mod launch;
 mod lnk;
 mod logging;
