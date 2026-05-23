@@ -37,6 +37,37 @@ Run `wmenu.exe`. A tray icon appears.
 - Press `Alt+Super+Space` to open the Omakase system-action menu. Keyboard-driven nested navigation.
 - Right-click the tray icon → `Settings` (or press `Ctrl+,` inside the launcher) to open the settings window.
 
+## Control from the terminal
+
+wmenu listens on `127.0.0.1:17129`. The same `wmenu.exe` binary works as a CLI client when invoked with a subcommand — the second invocation talks to the running daemon over IPC instead of trying to start a second instance.
+
+```powershell
+wmenu set-theme Stone    # switch theme live (Paper|Stone|Sage|Clay|Ink)
+wmenu --help             # show usage
+```
+
+The new theme is applied immediately *and* persisted to `config.toml`, so it survives a restart.
+
+### Cross-tool theme switching with wbar
+
+The sibling [`wbar`](https://github.com/yannickherrero/wbar) status bar speaks the same `set-theme` command on port 17128. One AHK hotkey can flip both at once:
+
+```ahk
+#!1::                                  ; Win+Alt+1 → Paper
+{
+    Run "wmenu.exe set-theme Paper"
+    Run "wbar.exe set-theme Paper"
+}
+
+#!2::                                  ; Win+Alt+2 → Ink
+{
+    Run "wmenu.exe set-theme Ink"
+    Run "wbar.exe set-theme Ink"
+}
+```
+
+GlazeWM keybindings work the same way (`shell-exec wmenu.exe set-theme Ink`).
+
 ## Settings
 
 Sidebar pages:
