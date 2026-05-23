@@ -14,6 +14,7 @@ use crate::config::watcher::LastWritten;
 use crate::hotkey::{BindingError, Manager as HotkeyMgr};
 use crate::index;
 use crate::index::SharedIndex;
+use crate::ipc::IpcCommand;
 use crate::launch;
 use crate::matcher::Engine;
 use crate::mru::Mru;
@@ -82,6 +83,9 @@ pub struct App {
     /// id matches this string, then clear the field.
     pub focus_target: Option<&'static str>,
     pub binding_errors: Vec<BindingError>,
+    /// Receive half of the IPC channel populated by `ipc::spawn`. None when
+    /// the listener failed to bind (port already in use, etc.).
+    pub ipc_rx: Option<Receiver<IpcCommand>>,
 }
 
 impl App {
@@ -92,6 +96,7 @@ impl App {
         tray: Tray,
         mut hotkey: HotkeyMgr,
         ctx: egui::Context,
+        ipc_rx: Option<Receiver<IpcCommand>>,
     ) -> Self {
         let (hotkey_tx, hotkey_rx) = channel();
         let ctx_hk = ctx.clone();
@@ -172,6 +177,7 @@ impl App {
             settings_search_focus_request: false,
             focus_target: None,
             binding_errors,
+            ipc_rx,
         }
     }
 
@@ -229,6 +235,31 @@ impl App {
         while let Ok(cfg) = self.cfg_rx.try_recv() {
             self.cfg = cfg;
             self.apply_reloaded(ctx);
+        }
+    }
+
+    /// Drain any pending IPC commands and apply them. Currently just
+    /// SetTheme; the same drain pattern accommodates future commands.
+    fn poll_ipc(&mut self, ctx: &egui::Context) {
+        // Drain into a Vec first so the immutable borrow on self.ipc_rx
+        // ends before we call &mut self methods (apply_reloaded /
+        // save_config) inside the dispatch loop.
+        let pending: Vec<IpcCommand> = if let Some(rx) = &self.ipc_rx {
+            std::iter::from_fn(|| rx.try_recv().ok()).collect()
+        } else {
+            Vec::new()
+        };
+        for cmd in pending {
+            match cmd {
+                IpcCommand::SetTheme(theme) => {
+                    tracing::info!(?theme, "switching theme via ipc");
+                    self.cfg.theme = theme;
+                    self.apply_reloaded(ctx);
+                    if let Err(e) = self.save_config() {
+                        tracing::warn!("save after ipc set-theme: {e}");
+                    }
+                }
+            }
         }
     }
 
@@ -403,6 +434,7 @@ impl eframe::App for App {
         self.poll_tray(ui.ctx());
         self.poll_hotkey(ui.ctx());
         self.poll_cfg(ui.ctx());
+        self.poll_ipc(ui.ctx());
 
         self.render_settings_viewport(ui.ctx());
 

@@ -70,6 +70,13 @@ fn main() -> Result<()> {
         "wmenu",
         options,
         Box::new(move |cc| {
+            let ipc_rx = match ipc::spawn(cc.egui_ctx.clone()) {
+                Ok(rx) => Some(rx),
+                Err(err) => {
+                    tracing::warn!(error = ?err, "ipc control server disabled");
+                    None
+                }
+            };
             Ok(Box::new(app::App::new(
                 cfg,
                 shared_index,
@@ -77,6 +84,7 @@ fn main() -> Result<()> {
                 tray_handle,
                 hotkey_mgr,
                 cc.egui_ctx.clone(),
+                ipc_rx,
             )))
         }),
     )
