@@ -25,6 +25,14 @@ mod tray;
 mod ui;
 
 fn main() -> Result<()> {
+    // CLI client mode: any first argv that matches a known subcommand sends
+    // the command to the already-running wmenu over IPC and exits. Runs
+    // *before* single_instance::ensure() so the client doesn't trip the
+    // singleton mutex held by the running daemon.
+    if let Some(code) = handle_cli() {
+        std::process::exit(code);
+    }
+
     let _log_guard = logging::init()?;
     tracing::info!("wmenu starting");
 
@@ -74,4 +82,57 @@ fn main() -> Result<()> {
     )
     .map_err(|e| anyhow::anyhow!("eframe run: {e}"))?;
     Ok(())
+}
+
+/// Inspect argv. Returns `Some(exit_code)` if a subcommand was handled
+/// (the process should exit with that code); `None` if no subcommand was
+/// given and the daemon should run normally.
+fn handle_cli() -> Option<i32> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        return None;
+    }
+    let cmd = match args[1].as_str() {
+        "--help" | "-h" | "help" => {
+            print_usage(&args[0]);
+            return Some(0);
+        }
+        "set-theme" => {
+            let Some(name) = args.get(2) else {
+                eprintln!("set-theme requires a theme name");
+                eprintln!("usage: {} set-theme <Paper|Stone|Sage|Clay|Ink>", args[0]);
+                return Some(2);
+            };
+            format!("set-theme {name}")
+        }
+        other => {
+            eprintln!("unknown command: {other}");
+            print_usage(&args[0]);
+            return Some(2);
+        }
+    };
+
+    match ipc::send(&cmd) {
+        Ok(reply) => {
+            if let Some(rest) = reply.strip_prefix("error:") {
+                eprintln!("error:{rest}");
+                Some(1)
+            } else {
+                Some(0)
+            }
+        }
+        Err(err) => {
+            eprintln!("ipc error: {err:#}");
+            Some(1)
+        }
+    }
+}
+
+fn print_usage(prog: &str) {
+    eprintln!("wmenu — keyboard-driven Windows utility");
+    eprintln!();
+    eprintln!("usage:");
+    eprintln!("  {prog}                     Run the daemon (no arguments)");
+    eprintln!("  {prog} set-theme <name>    Switch theme (Paper|Stone|Sage|Clay|Ink)");
+    eprintln!("  {prog} --help              Show this message");
 }
