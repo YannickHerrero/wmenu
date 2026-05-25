@@ -22,9 +22,11 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::process::Command;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
+use eframe::egui::Color32;
 
 use crate::config::Theme;
 use crate::ui::theme::Palette;
@@ -32,6 +34,18 @@ use crate::ui::theme::Palette;
 /// wbar's IPC port. The protocol mirrors wmenu's own (newline-delimited
 /// text, server replies `ok\n` or `error: <msg>\n`).
 const WBAR_IPC_PORT: u16 = 17128;
+
+/// Trailing-comment sentinels the user's GlazeWM config.yaml uses to mark
+/// which border-color lines we should rewrite. See windot's seed config
+/// for the canonical placement.
+const GLAZEWM_FOCUSED_SENTINEL: &str = "# wmenu-theme-focused";
+const GLAZEWM_UNFOCUSED_SENTINEL: &str = "# wmenu-theme-unfocused";
+
+/// Win32 CreateProcess flag: don't allocate a console for the child. Used
+/// when spawning glazewm.exe, which is a console-subsystem binary and would
+/// otherwise flash a terminal window.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Per-leg outcome. `Ok(())` = applied successfully, `Err(_)` = logged
 /// at warn-level and skipped, but does not abort the other legs.
@@ -123,9 +137,76 @@ fn apply_explorer(theme: Theme) -> Result<()> {
     Ok(())
 }
 
-fn apply_glazewm(_palette: &Palette) -> Result<()> {
-    // TODO: yaml-edit ~/.glzr/glazewm/config.yaml border colours, then
-    // spawn `glazewm command wm-reload-config`.
+fn apply_glazewm(palette: &Palette) -> Result<()> {
+    let base = directories::BaseDirs::new().ok_or_else(|| anyhow!("BaseDirs unavailable"))?;
+    let path = base.home_dir().join(".glzr/glazewm/config.yaml");
+    let content =
+        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+
+    let accent = color_to_hex(palette.accent);
+    let unfocused = color_to_hex(palette.ink_faint);
+
+    let mut updated = String::with_capacity(content.len());
+    let mut focused_found = false;
+    let mut unfocused_found = false;
+
+    for line in content.lines() {
+        if line.contains(GLAZEWM_FOCUSED_SENTINEL) {
+            updated.push_str(&replace_quoted_value(line, &accent));
+            focused_found = true;
+        } else if line.contains(GLAZEWM_UNFOCUSED_SENTINEL) {
+            updated.push_str(&replace_quoted_value(line, &unfocused));
+            unfocused_found = true;
+        } else {
+            updated.push_str(line);
+        }
+        updated.push('\n');
+    }
+
+    if !focused_found && !unfocused_found {
+        return Err(anyhow!(
+            "no `# wmenu-theme-focused` / `# wmenu-theme-unfocused` sentinels in {}",
+            path.display()
+        ));
+    }
+
+    std::fs::write(&path, updated).with_context(|| format!("write {}", path.display()))?;
+    reload_glazewm()?;
+    Ok(())
+}
+
+/// Replace the first single-quoted value in `line` with `new_value`.
+/// Preserves leading indent, the `color:` key, and the trailing sentinel
+/// comment. Defensive — leaves the line untouched if it has no quoted
+/// value (which would mean someone moved the sentinel onto a different
+/// shape of line).
+fn replace_quoted_value(line: &str, new_value: &str) -> String {
+    let Some(open) = line.find('\'') else {
+        return line.to_string();
+    };
+    let Some(close_rel) = line[open + 1..].find('\'') else {
+        return line.to_string();
+    };
+    let close = open + 1 + close_rel;
+    format!("{}{}{}", &line[..=open], new_value, &line[close..])
+}
+
+fn color_to_hex(c: Color32) -> String {
+    format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())
+}
+
+fn reload_glazewm() -> Result<()> {
+    let mut cmd = Command::new("glazewm");
+    cmd.args(["command", "wm-reload-config"]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let status = cmd.status().context("spawn `glazewm command wm-reload-config`")?;
+    if !status.success() {
+        return Err(anyhow!("glazewm reload exited with {status}"));
+    }
     Ok(())
 }
 
