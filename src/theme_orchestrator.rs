@@ -210,9 +210,72 @@ fn reload_glazewm() -> Result<()> {
     Ok(())
 }
 
-fn apply_windows(_theme: Theme, _palette: &Palette) -> Result<()> {
-    // TODO: HKCU Personalize light/dark + DWM AccentColor / ColorizationColor,
-    // then SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE,
-    // "ImmersiveColorSet").
+#[cfg(windows)]
+fn apply_windows(theme: Theme, palette: &Palette) -> Result<()> {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+    // Ink is the only dark theme; the others are light. AppsUseLightTheme
+    // controls per-app chrome, SystemUsesLightTheme controls taskbar /
+    // start menu — both should agree so the OS doesn't end up half-dark.
+    let light_mode: u32 = if matches!(theme, Theme::Ink) { 0 } else { 1 };
+    let (personalize, _) = hkcu
+        .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        .context("open Personalize key")?;
+    personalize
+        .set_value("AppsUseLightTheme", &light_mode)
+        .context("write AppsUseLightTheme")?;
+    personalize
+        .set_value("SystemUsesLightTheme", &light_mode)
+        .context("write SystemUsesLightTheme")?;
+
+    // AccentColor is stored as a little-endian ABGR DWORD; alpha is
+    // always 0xFF here (Windows ignores transparency on the accent).
+    let abgr: u32 = 0xFF00_0000
+        | ((palette.accent.b() as u32) << 16)
+        | ((palette.accent.g() as u32) << 8)
+        | (palette.accent.r() as u32);
+    let (dwm, _) = hkcu
+        .create_subkey(r"Software\Microsoft\Windows\DWM")
+        .context("open DWM key")?;
+    dwm.set_value("AccentColor", &abgr).context("write AccentColor")?;
+    dwm.set_value("ColorizationColor", &abgr)
+        .context("write ColorizationColor")?;
+
+    broadcast_immersive_color_set();
     Ok(())
+}
+
+#[cfg(not(windows))]
+fn apply_windows(_theme: Theme, _palette: &Palette) -> Result<()> {
+    // Non-Windows dev builds: nothing to broadcast.
+    Ok(())
+}
+
+/// Tell every visible top-level window that the colour theme has changed.
+/// Without this broadcast, already-running apps keep painting their old
+/// accent until the user logs out and back in.
+#[cfg(windows)]
+fn broadcast_immersive_color_set() {
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+    };
+
+    // null-terminated UTF-16; keep alive until SendMessageTimeoutW returns.
+    let setting: Vec<u16> = "ImmersiveColorSet\0".encode_utf16().collect();
+    let hwnd_broadcast = HWND(0xFFFF as *mut std::ffi::c_void);
+    unsafe {
+        SendMessageTimeoutW(
+            hwnd_broadcast,
+            WM_SETTINGCHANGE,
+            WPARAM(0),
+            LPARAM(setting.as_ptr() as isize),
+            SMTO_ABORTIFHUNG,
+            100,
+            None,
+        );
+    }
 }
