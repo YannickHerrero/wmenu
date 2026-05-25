@@ -238,12 +238,23 @@ impl App {
         }
     }
 
+    /// Switch the active theme, apply it to the running egui context, and
+    /// persist the choice. Shared between the IPC `set-theme` command and
+    /// the upcoming Omakase Theme entry — both want exactly this behaviour.
+    pub(crate) fn apply_theme(&mut self, ctx: &egui::Context, theme: crate::config::Theme) {
+        self.cfg.theme = theme;
+        self.apply_reloaded(ctx);
+        if let Err(e) = self.save_config() {
+            tracing::warn!("save after set-theme: {e}");
+        }
+    }
+
     /// Drain any pending IPC commands and apply them. Currently just
     /// SetTheme; the same drain pattern accommodates future commands.
     fn poll_ipc(&mut self, ctx: &egui::Context) {
         // Drain into a Vec first so the immutable borrow on self.ipc_rx
-        // ends before we call &mut self methods (apply_reloaded /
-        // save_config) inside the dispatch loop.
+        // ends before we call &mut self methods (apply_theme) inside the
+        // dispatch loop.
         let pending: Vec<IpcCommand> = if let Some(rx) = &self.ipc_rx {
             std::iter::from_fn(|| rx.try_recv().ok()).collect()
         } else {
@@ -253,11 +264,7 @@ impl App {
             match cmd {
                 IpcCommand::SetTheme(theme) => {
                     tracing::info!(?theme, "switching theme via ipc");
-                    self.cfg.theme = theme;
-                    self.apply_reloaded(ctx);
-                    if let Err(e) = self.save_config() {
-                        tracing::warn!("save after ipc set-theme: {e}");
-                    }
+                    self.apply_theme(ctx, theme);
                 }
             }
         }
