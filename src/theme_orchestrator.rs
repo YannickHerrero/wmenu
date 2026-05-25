@@ -96,9 +96,30 @@ fn apply_wbar(theme: Theme) -> Result<()> {
     }
 }
 
-fn apply_explorer(_theme: Theme) -> Result<()> {
-    // TODO: edit %APPDATA%\com.ilios.explorer\config.json — only the
-    // `theme` field. Explorer's notify watcher (v1.1.0+) picks it up.
+fn apply_explorer(theme: Theme) -> Result<()> {
+    // Explorer stores config under Tauri's app_config_dir, which on Windows
+    // resolves to %APPDATA%\com.ilios.explorer. directories::BaseDirs lands
+    // in the right place there and on Linux dev builds.
+    let base = directories::BaseDirs::new().ok_or_else(|| anyhow!("BaseDirs unavailable"))?;
+    let path = base
+        .config_dir()
+        .join("com.ilios.explorer")
+        .join("config.json");
+
+    let text = std::fs::read_to_string(&path)
+        .with_context(|| format!("read {}", path.display()))?;
+    let mut json: serde_json::Value =
+        serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
+
+    // Explorer's ThemeKey is lowercase ("paper" | "stone" | …).
+    let name = format!("{theme:?}").to_lowercase();
+    let obj = json
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("config root is not a JSON object"))?;
+    obj.insert("theme".into(), serde_json::Value::String(name));
+
+    let out = serde_json::to_string_pretty(&json).context("serialise updated config")?;
+    std::fs::write(&path, out).with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }
 
