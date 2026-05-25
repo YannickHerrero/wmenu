@@ -1,5 +1,6 @@
 use eframe::egui::{self, Frame, Key, Margin, Sense, Ui};
 
+use crate::config::Theme;
 use crate::omakase::{Page, SystemAction};
 use crate::ui::theme::Palette;
 
@@ -8,10 +9,12 @@ pub enum Action {
     Back,
     Hide,
     EnterSystem,
+    EnterTheme,
     EnterHelp,
     ToggleAmphetamine,
     SelectSystem(SystemAction),
     ConfirmSystem(SystemAction),
+    SelectTheme(Theme),
 }
 
 pub fn show(
@@ -26,6 +29,7 @@ pub fn show(
     match page {
         Page::Top => show_top(ui, palette, query, selected, amphetamine_on, request_focus),
         Page::System => show_system(ui, palette, query, selected, request_focus),
+        Page::Theme => show_theme(ui, palette, query, selected, request_focus),
         Page::Confirm(action) => show_confirm(ui, palette, action, request_focus),
         Page::Help => show_help(ui, palette),
     }
@@ -46,6 +50,7 @@ fn show_top(
     };
     let items: Vec<(&str, TopAction)> = vec![
         ("System", TopAction::EnterSystem),
+        ("Theme", TopAction::EnterTheme),
         (amph_label, TopAction::ToggleAmphetamine),
         ("Help", TopAction::EnterHelp),
     ];
@@ -61,8 +66,39 @@ fn show_top(
     ) {
         MenuResult::Hide => Action::Hide,
         MenuResult::Pick(TopAction::EnterSystem) => Action::EnterSystem,
+        MenuResult::Pick(TopAction::EnterTheme) => Action::EnterTheme,
         MenuResult::Pick(TopAction::ToggleAmphetamine) => Action::ToggleAmphetamine,
         MenuResult::Pick(TopAction::EnterHelp) => Action::EnterHelp,
+        MenuResult::None => Action::None,
+    }
+}
+
+fn show_theme(
+    ui: &mut Ui,
+    palette: &Palette,
+    query: &mut String,
+    selected: &mut usize,
+    request_focus: bool,
+) -> Action {
+    let items: Vec<(&str, Theme)> = vec![
+        ("Paper", Theme::Paper),
+        ("Stone", Theme::Stone),
+        ("Sage", Theme::Sage),
+        ("Clay", Theme::Clay),
+        ("Ink", Theme::Ink),
+    ];
+
+    match menu_pick(
+        ui,
+        palette,
+        "Theme",
+        query,
+        selected,
+        &items,
+        request_focus,
+    ) {
+        MenuResult::Hide => Action::Back,
+        MenuResult::Pick(theme) => Action::SelectTheme(theme),
         MenuResult::None => Action::None,
     }
 }
@@ -181,6 +217,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
 #[derive(Clone, Copy)]
 enum TopAction {
     EnterSystem,
+    EnterTheme,
     ToggleAmphetamine,
     EnterHelp,
 }

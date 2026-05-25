@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 pub enum Page {
     Top,
     System,
+    Theme,
     Confirm(SystemAction),
     Help,
 }

@@ -19,6 +19,7 @@ use crate::launch;
 use crate::matcher::Engine;
 use crate::mru::Mru;
 use crate::omakase;
+use crate::theme_orchestrator;
 use crate::tray::Tray;
 use crate::ui::{launcher, omakase as ui_omakase, settings, theme};
 
@@ -410,7 +411,7 @@ impl App {
         self.omakase_focus_request = true;
         match self.omakase_page {
             omakase::Page::Top => self.hide(ctx),
-            omakase::Page::System | omakase::Page::Help => {
+            omakase::Page::System | omakase::Page::Theme | omakase::Page::Help => {
                 self.omakase_page = omakase::Page::Top;
             }
             omakase::Page::Confirm(_) => {
@@ -520,6 +521,12 @@ impl eframe::App for App {
                         self.omakase_selected = 0;
                         self.omakase_focus_request = true;
                     }
+                    ui_omakase::Action::EnterTheme => {
+                        self.omakase_page = omakase::Page::Theme;
+                        self.omakase_query.clear();
+                        self.omakase_selected = 0;
+                        self.omakase_focus_request = true;
+                    }
                     ui_omakase::Action::EnterHelp => {
                         self.omakase_page = omakase::Page::Help;
                     }
@@ -543,6 +550,24 @@ impl eframe::App for App {
                         if let Err(e) = omakase::execute_system(action) {
                             tracing::warn!("execute {:?}: {e}", action);
                         }
+                    }
+                    ui_omakase::Action::SelectTheme(picked) => {
+                        tracing::info!(?picked, "switching theme via omakase");
+                        // Apply to wmenu first so the user sees instant
+                        // feedback on the launcher chrome; the external
+                        // legs fire afterwards and any one of them failing
+                        // doesn't undo wmenu's own switch.
+                        self.apply_theme(ui.ctx(), picked);
+                        let palette = theme::palette(picked);
+                        let report = theme_orchestrator::apply(picked, &palette);
+                        tracing::info!(
+                            "theme orchestrator: {}",
+                            report.summarise()
+                        );
+                        ui.ctx()
+                            .send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        self.visible = false;
+                        self.hotkey.set_escape_active(false);
                     }
                 }
             }
