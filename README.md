@@ -7,7 +7,8 @@ Keyboard-driven Windows utility. A dmenu-style app launcher, a system-action men
 ## Features
 
 - **Launcher** — global hotkey (default `Alt+Space`) opens a centred popup that fuzzy-matches Start Menu shortcuts. `↑/↓`, `Enter`, `Esc`.
-- **Omakase menu** — second global hotkey (default `Alt+Super+Space`) opens a keyboard-driven menu for system actions (shutdown / restart / hibernate) and toggles.
+- **Omakase menu** — second global hotkey (default `Alt+Super+Space`) opens a keyboard-driven menu for system actions (shutdown / restart / hibernate), the **ecosystem Theme picker** (see below), and toggles.
+- **Theme orchestrator** — picking a theme from the Omakase Theme submenu fans the choice out to wmenu, [wbar](https://github.com/YannickHerrero/wbar), [Explorer](https://github.com/YannickHerrero/Explorer), GlazeWM border colours, WezTerm, the Windows dark/light + DWM accent registry, and the desktop wallpaper — all in one keystroke. Each leg fails independently.
 - **Amphetamine** — optional background worker nudges the cursor every 4 minutes to keep the screensaver away.
 - **Hotkey bindings** — arbitrary user-defined global hotkeys mapped to one of four action types: `Launch` (run a command), `Url` (open in default browser), `Script` (PowerShell / cmd / pwsh), or `FocusOrLaunch` (focus an existing window or spawn the exe if not running).
 - **Settings window** — a real resizable window with a sidebar: General (theme, autostart, start-minimized), Launcher (built-in hotkeys, scan interval, extra dirs), Bindings (the user-defined ones), Amphetamine, About. External edits to `config.toml` hot-reload via a file watcher.
@@ -48,25 +49,29 @@ wmenu --help             # show usage
 
 The new theme is applied immediately *and* persisted to `config.toml`, so it survives a restart.
 
-### Cross-tool theme switching with wbar
+### Ecosystem theme switch (Omakase → Theme)
 
-The sibling [`wbar`](https://github.com/yannickherrero/wbar) status bar speaks the same `set-theme` command on port 17128. One AHK hotkey can flip both at once:
+Picking a theme from the Omakase **Theme** submenu (`Alt+Super+Space → Theme → <Name>`) drives a single orchestration pass that flips every visual surface in the user's setup at once. Each leg is best-effort — a failure (e.g. wbar not running, no wallpaper file present) is logged and skipped, the rest still apply.
 
-```ahk
-#!1::                                  ; Win+Alt+1 → Paper
-{
-    Run "wmenu.exe set-theme Paper"
-    Run "wbar.exe set-theme Paper"
-}
+| Target | Mechanism |
+|---|---|
+| wmenu itself | local apply + persist (same code path as `wmenu set-theme`) |
+| wbar | TCP `127.0.0.1:17128` `set-theme <Name>\n` |
+| Explorer | overwrites the `theme` field in `%APPDATA%\com.ilios.explorer\config.json`; Explorer's backend file watcher picks it up and pushes the new CSS variables to the running window |
+| GlazeWM | rewrites the focused / unfocused border `color:` lines marked with `# wmenu-theme-focused` / `# wmenu-theme-unfocused` sentinel comments in `~/.glzr/glazewm/config.yaml`, then spawns `glazewm command wm-reload-config` |
+| WezTerm | writes a full `config.colors` table to `~/.wezterm-colors.lua`; WezTerm hot-reloads any file added to its `add_to_config_reload_watch_list` |
+| Windows | `HKCU\…\Personalize\AppsUseLightTheme` / `SystemUsesLightTheme` (Ink → 0, others → 1) + `HKCU\…\DWM\AccentColor` / `ColorizationColor` (ABGR), then `SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, "ImmersiveColorSet")` so running apps repaint without log-out |
+| Wallpaper | `SystemParametersInfoW SPI_SETDESKWALLPAPER` on `%APPDATA%\wmenu\wallpapers\<theme>.png` |
 
-#!2::                                  ; Win+Alt+2 → Ink
-{
-    Run "wmenu.exe set-theme Ink"
-    Run "wbar.exe set-theme Ink"
-}
+The orchestrator logs a single-line report per switch — `theme orchestrator: wbar=ok explorer=ok glazewm=ok windows=ok wezterm=ok wallpaper=ok` — visible in `%APPDATA%\wmenu\config\logs\wmenu.log.<date>`.
+
+### Direct CLI
+
+For scripts and keybinds, the legacy single-tool form still works (only flips wmenu's own theme; doesn't fan out):
+
+```powershell
+wmenu set-theme Stone
 ```
-
-GlazeWM keybindings work the same way (`shell-exec wmenu.exe set-theme Ink`).
 
 ## Settings
 
