@@ -21,6 +21,7 @@ mod matcher;
 mod mru;
 mod omakase;
 mod single_instance;
+mod theme_orchestrator;
 mod tray;
 mod ui;
 
