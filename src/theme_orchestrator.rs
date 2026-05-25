@@ -55,6 +55,7 @@ pub struct ApplyReport {
     pub glazewm: Result<()>,
     pub windows: Result<()>,
     pub wezterm: Result<()>,
+    pub wallpaper: Result<()>,
 }
 
 impl ApplyReport {
@@ -68,12 +69,13 @@ impl ApplyReport {
             }
         }
         format!(
-            "wbar={} explorer={} glazewm={} windows={} wezterm={}",
+            "wbar={} explorer={} glazewm={} windows={} wezterm={} wallpaper={}",
             fmt(&self.wbar),
             fmt(&self.explorer),
             fmt(&self.glazewm),
             fmt(&self.windows),
             fmt(&self.wezterm),
+            fmt(&self.wallpaper),
         )
     }
 }
@@ -89,6 +91,7 @@ pub fn apply(theme: Theme, palette: &Palette) -> ApplyReport {
         glazewm: apply_glazewm(palette),
         windows: apply_windows(theme, palette),
         wezterm: apply_wezterm(theme, palette),
+        wallpaper: apply_wallpaper(theme),
     }
 }
 
@@ -353,4 +356,46 @@ fn render_wezterm_colors(theme: Theme, p: &Palette) -> String {
          \x20\x20}},\n\
          }}\n"
     )
+}
+
+/// Switch the desktop wallpaper to the matching `<theme>.png` under
+/// `%APPDATA%\wmenu\wallpapers\`. If the file isn't there, return an
+/// error so the report surfaces the miss; the other legs still apply.
+fn apply_wallpaper(theme: Theme) -> Result<()> {
+    let base = directories::BaseDirs::new().ok_or_else(|| anyhow!("BaseDirs unavailable"))?;
+    let name = format!("{theme:?}").to_lowercase();
+    let path = base
+        .config_dir()
+        .join("wmenu")
+        .join("wallpapers")
+        .join(format!("{name}.png"));
+    if !path.exists() {
+        return Err(anyhow!("no wallpaper at {}", path.display()));
+    }
+    set_desktop_wallpaper(&path)
+}
+
+#[cfg(windows)]
+fn set_desktop_wallpaper(path: &std::path::Path) -> Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SPI_SETDESKWALLPAPER, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SystemParametersInfoW,
+    };
+
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    unsafe {
+        SystemParametersInfoW(
+            SPI_SETDESKWALLPAPER,
+            0,
+            Some(wide.as_ptr() as *mut _),
+            SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE,
+        )
+    }
+    .ok()
+    .context("SystemParametersInfoW SPI_SETDESKWALLPAPER")
+}
+
+#[cfg(not(windows))]
+fn set_desktop_wallpaper(_path: &std::path::Path) -> Result<()> {
+    Ok(())
 }
