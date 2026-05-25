@@ -20,10 +20,18 @@
 //! All actual writes are stubs in this initial scaffolding commit —
 //! each leg gets wired in its own follow-up commit.
 
-use anyhow::Result;
+use std::io::{BufRead, BufReader, Write};
+use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::time::Duration;
+
+use anyhow::{Context, Result, anyhow};
 
 use crate::config::Theme;
 use crate::ui::theme::Palette;
+
+/// wbar's IPC port. The protocol mirrors wmenu's own (newline-delimited
+/// text, server replies `ok\n` or `error: <msg>\n`).
+const WBAR_IPC_PORT: u16 = 17128;
 
 /// Per-leg outcome. `Ok(())` = applied successfully, `Err(_)` = logged
 /// at warn-level and skipped, but does not abort the other legs.
@@ -67,9 +75,25 @@ pub fn apply(theme: Theme, palette: &Palette) -> ApplyReport {
     }
 }
 
-fn apply_wbar(_theme: Theme) -> Result<()> {
-    // TODO: open TCP 127.0.0.1:17128, send "set-theme <Name>\n", read reply.
-    Ok(())
+fn apply_wbar(theme: Theme) -> Result<()> {
+    // Theme's Debug repr is the canonical name (Paper / Stone / Sage /
+    // Clay / Ink) — wbar's parser is case-insensitive so this is safe.
+    let name = format!("{theme:?}");
+    let addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), WBAR_IPC_PORT);
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(500))
+        .with_context(|| format!("connect {addr} (is wbar running?)"))?;
+    stream.set_read_timeout(Some(Duration::from_secs(1))).ok();
+    writeln!(stream, "set-theme {name}").context("write wbar ipc command")?;
+
+    let mut reader = BufReader::new(stream);
+    let mut reply = String::new();
+    reader.read_line(&mut reply).context("read wbar reply")?;
+    let reply = reply.trim();
+    if reply == "ok" {
+        Ok(())
+    } else {
+        Err(anyhow!("wbar replied: {reply}"))
+    }
 }
 
 fn apply_explorer(_theme: Theme) -> Result<()> {
