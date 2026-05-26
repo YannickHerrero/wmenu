@@ -320,6 +320,14 @@ impl App {
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         self.visible = true;
+        // A fresh visible session starts unfocused — the Visible(true) /
+        // Focus viewport commands queued above don't take effect until after
+        // this frame's input snapshot, so `i.focused` will read false on the
+        // first frame. If a previous session left `was_focused = true` (the
+        // Launch / ConfirmSystem / SelectTheme dismissal paths bypass
+        // `hide()` and don't clear it), the auto-dismiss branch in `ui()`
+        // would fire here and hide the window the user just opened.
+        self.was_focused = false;
         self.hotkey.set_escape_active(true);
     }
 
