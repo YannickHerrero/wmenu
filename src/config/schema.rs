@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
     #[default]
@@ -27,6 +27,18 @@ impl FromStr for Theme {
                 "unknown theme {s:?} (expected Paper, Stone, Sage, Clay, or Ink)"
             )),
         }
+    }
+}
+
+// A stray capital in `config.toml` (e.g. `theme = "Stone"`) used to fail
+// serde's lowercase-only matching, propagate `Err` up through `main()`, and
+// silently kill the daemon because release builds have no stderr
+// (`windows_subsystem = "windows"`). Delegate to the case-insensitive
+// `FromStr` impl so on-disk hand-edits with capitalised variant names load.
+impl<'de> Deserialize<'de> for Theme {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Self::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 
