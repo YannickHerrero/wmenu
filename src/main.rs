@@ -37,6 +37,19 @@ fn main() -> Result<()> {
     let _log_guard = logging::init()?;
     tracing::info!("wmenu starting");
 
+    // Release builds use `windows_subsystem = "windows"`, so the process has
+    // no stderr. Without these hooks, a panic or any error propagated through
+    // `?` vanishes — the user sees `wmenu starting` in the log file and then
+    // nothing, with no clue what failed. Route both into the log instead.
+    std::panic::set_hook(Box::new(|info| tracing::error!("panic: {info}")));
+    let outcome = run();
+    if let Err(err) = &outcome {
+        tracing::error!("fatal startup error: {err:#}");
+    }
+    outcome
+}
+
+fn run() -> Result<()> {
     if let Err(e) = single_instance::ensure() {
         tracing::warn!("{e}");
         return Ok(());
