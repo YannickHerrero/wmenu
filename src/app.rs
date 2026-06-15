@@ -315,7 +315,7 @@ impl App {
     }
 
     fn show_window(&mut self, ctx: &egui::Context) {
-        let pos = center_position();
+        let pos = center_position(ctx.pixels_per_point());
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -782,8 +782,13 @@ fn active_monitor_rect() -> (f32, f32, f32, f32) {
     (0.0, 0.0, 1920.0, 1080.0)
 }
 
-fn center_position() -> egui::Pos2 {
+fn center_position(scale: f32) -> egui::Pos2 {
+    // `active_monitor_rect` returns physical pixels (Win32 is DPI-aware in
+    // this process), while `ViewportCommand::OuterPosition` and `WINDOW_W`
+    // / `WINDOW_H` are logical points. Scale the rect down so both sides of
+    // the subtraction live in the same coordinate space.
     let (x, y, w, h) = active_monitor_rect();
+    let (x, y, w, h) = (x / scale, y / scale, w / scale, h / scale);
     egui::pos2(x + (w - WINDOW_W) / 2.0, y + (h - WINDOW_H) / 2.0)
 }
 
