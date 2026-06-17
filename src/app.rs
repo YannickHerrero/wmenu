@@ -486,6 +486,7 @@ impl eframe::App for App {
                         ui.ctx()
                             .send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         self.visible = false;
+                        self.hotkey.set_escape_active(false);
                         match launch::launch(&path) {
                             Ok(()) => {
                                 self.mru.record_launch(&path);
