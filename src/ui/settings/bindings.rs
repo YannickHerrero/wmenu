@@ -224,6 +224,15 @@ fn action_editor(
                         launch_args: Vec::new(),
                     };
                 }
+                if ui
+                    .selectable_label(
+                        matches!(action, Action::RotateWallpaper),
+                        "Rotate wallpaper",
+                    )
+                    .clicked()
+                {
+                    *action = Action::RotateWallpaper;
+                }
             });
     });
 
