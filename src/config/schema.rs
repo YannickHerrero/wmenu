@@ -130,7 +130,7 @@ pub struct Binding {
     pub action: Action,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub theme: Theme,
@@ -141,7 +141,25 @@ pub struct Config {
     /// closes it; without a titlebar there's no draggable region (rely on the
     /// window manager, e.g. Win+drag on Windows).
     pub settings_borderless: bool,
+    /// Minutes between desktop-wallpaper re-randomizations. Each tick picks a
+    /// fresh `<theme>-*.png` from the active theme's pool. `0` disables
+    /// rotation (the wallpaper still changes once per theme switch).
+    pub wallpaper_rotation_minutes: u64,
     pub bindings: Vec<Binding>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            theme: Theme::default(),
+            daemon: DaemonCfg::default(),
+            launcher: LauncherCfg::default(),
+            amphetamine_enabled: false,
+            settings_borderless: false,
+            wallpaper_rotation_minutes: 30,
+            bindings: Vec::new(),
+        }
+    }
 }
 
 fn default_omakase_hotkey() -> HotkeySpec {
