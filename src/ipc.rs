@@ -30,6 +30,7 @@ pub const PORT: u16 = 17129;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IpcCommand {
     SetTheme(Theme),
+    RotateWallpaper,
 }
 
 impl IpcCommand {
@@ -51,6 +52,7 @@ impl IpcCommand {
                     Theme::from_str(arg).map(Self::SetTheme)
                 }
             }
+            "rotate-wallpaper" => Ok(Self::RotateWallpaper),
             other => Err(format!("unknown command: {other:?}")),
         }
     }
@@ -135,6 +137,14 @@ mod tests {
         assert_eq!(
             IpcCommand::parse("set-theme ink"),
             Ok(IpcCommand::SetTheme(Theme::Ink)),
+        );
+    }
+
+    #[test]
+    fn parses_rotate_wallpaper() {
+        assert_eq!(
+            IpcCommand::parse("rotate-wallpaper"),
+            Ok(IpcCommand::RotateWallpaper),
         );
     }
 

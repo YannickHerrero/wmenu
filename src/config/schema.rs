@@ -117,6 +117,10 @@ pub enum Action {
         #[serde(default)]
         launch_args: Vec<String>,
     },
+    /// Re-randomize the desktop wallpaper within the active theme's pool.
+    /// Stateful (needs the running app's theme + last pick), so it's
+    /// dispatched in `App`, not the stateless `action::run`.
+    RotateWallpaper,
 }
 
 fn default_true() -> bool {

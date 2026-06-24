@@ -17,5 +17,11 @@ pub fn run(action: &Action) -> Result<()> {
             match_basename,
             launch_args,
         } => focus_or_launch::run(exe_path, *match_basename, launch_args),
+        // Stateful: dispatched in App::poll_hotkey / poll_ipc, which never
+        // route it here. Erroring (vs. a silent Ok) surfaces any future
+        // miswiring instead of hiding it.
+        Action::RotateWallpaper => Err(anyhow::anyhow!(
+            "RotateWallpaper must be dispatched by App, not action::run"
+        )),
     }
 }

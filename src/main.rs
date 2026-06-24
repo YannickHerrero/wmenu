@@ -127,6 +127,7 @@ fn handle_cli() -> Option<i32> {
             };
             format!("set-theme {name}")
         }
+        "rotate-wallpaper" => "rotate-wallpaper".to_string(),
         other => {
             eprintln!("unknown command: {other}");
             print_usage(&args[0]);
@@ -156,5 +157,6 @@ fn print_usage(prog: &str) {
     eprintln!("usage:");
     eprintln!("  {prog}                     Run the daemon (no arguments)");
     eprintln!("  {prog} set-theme <name>    Switch theme (Paper|Stone|Sage|Clay|Ink)");
+    eprintln!("  {prog} rotate-wallpaper    Re-randomize the wallpaper in the current theme");
     eprintln!("  {prog} --help              Show this message");
 }

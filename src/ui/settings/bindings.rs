@@ -228,6 +228,7 @@ fn action_editor(
     });
 
     match action {
+        Action::RotateWallpaper => {}
         Action::Launch { command } => {
             c::field_row(ui, theme, "Command", |ui| {
                 c::app_picker(ui, theme, command, picker, c::PickerMode::Lnk);
@@ -298,6 +299,7 @@ fn action_type_label(action: &Action) -> &'static str {
         Action::Url { .. } => "Open URL",
         Action::Script { .. } => "Run script",
         Action::FocusOrLaunch { .. } => "Focus or launch",
+        Action::RotateWallpaper => "Rotate wallpaper",
     }
 }
 
@@ -315,5 +317,6 @@ fn take_command(action: &Action) -> String {
         Action::Url { url } => url.clone(),
         Action::Script { script, .. } => script.clone(),
         Action::FocusOrLaunch { exe_path, .. } => exe_path.clone(),
+        Action::RotateWallpaper => String::new(),
     }
 }

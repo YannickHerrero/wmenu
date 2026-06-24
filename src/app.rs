@@ -302,6 +302,10 @@ impl App {
                     tracing::info!(?theme, "switching theme via ipc");
                     self.apply_theme(ctx, theme);
                 }
+                IpcCommand::RotateWallpaper => {
+                    tracing::info!("rotating wallpaper via ipc");
+                    self.rotate_wallpaper();
+                }
             }
         }
     }
@@ -313,9 +317,15 @@ impl App {
         while self.rotate_rx.try_recv().is_ok() {
             fired = true;
         }
-        if !fired {
-            return;
+        if fired {
+            self.rotate_wallpaper();
         }
+    }
+
+    /// Re-randomize the desktop wallpaper within the active theme's pool,
+    /// avoiding the previous pick. Shared by the rotation timer, the
+    /// `rotate-wallpaper` IPC command, and the RotateWallpaper binding.
+    pub(crate) fn rotate_wallpaper(&mut self) {
         match theme_orchestrator::pick_wallpaper(self.cfg.theme, self.last_wallpaper.as_deref()) {
             Ok(path) => self.last_wallpaper = Some(path),
             Err(e) => tracing::warn!("wallpaper rotation: {e}"),
@@ -453,12 +463,24 @@ impl App {
                     View::Launcher => self.hide(ctx),
                     View::Omakase => self.omakase_back_or_hide(ctx),
                 }
-            } else if let Some(idx) = self.hotkey.binding_index_for(id)
-                && let Some(binding) = self.cfg.bindings.get(idx)
-            {
-                tracing::info!("binding fired: '{}' -> {:?}", binding.label, binding.action);
-                if let Err(e) = action::run(&binding.action) {
-                    tracing::warn!("binding action failed: {e}");
+            } else if let Some(idx) = self.hotkey.binding_index_for(id) {
+                // Clone out of self.cfg so the immutable borrow ends before a
+                // RotateWallpaper binding dispatches through &mut self.
+                let dispatch = self
+                    .cfg
+                    .bindings
+                    .get(idx)
+                    .map(|b| (b.label.clone(), b.action.clone()));
+                if let Some((label, action)) = dispatch {
+                    tracing::info!("binding fired: '{label}' -> {action:?}");
+                    match action {
+                        crate::config::Action::RotateWallpaper => self.rotate_wallpaper(),
+                        other => {
+                            if let Err(e) = action::run(&other) {
+                                tracing::warn!("binding action failed: {e}");
+                            }
+                        }
+                    }
                 }
             }
         }
