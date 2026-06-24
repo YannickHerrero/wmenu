@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
@@ -87,6 +88,13 @@ pub struct App {
     /// Receive half of the IPC channel populated by `ipc::spawn`. None when
     /// the listener failed to bind (port already in use, etc.).
     pub ipc_rx: Option<Receiver<IpcCommand>>,
+    /// Ticks from the wallpaper-rotation timer thread. Each tick re-randomizes
+    /// the desktop wallpaper within the active theme's pool. Never fires when
+    /// `wallpaper_rotation_minutes` is 0 (the thread isn't spawned).
+    pub rotate_rx: Receiver<()>,
+    /// Last wallpaper this process set, so rotation can avoid an immediate
+    /// repeat. Cleared on theme switch — a new theme means a new pool.
+    pub last_wallpaper: Option<PathBuf>,
 }
 
 impl App {
@@ -112,6 +120,27 @@ impl App {
             let _ = menu_tx.send(event);
             ctx_menu.request_repaint();
         }));
+
+        // Wallpaper rotation timer. A detached thread sleeps the configured
+        // interval, then wakes the (otherwise idle) egui loop the same way the
+        // hotkey/menu handlers do — a channel send plus request_repaint. The
+        // interval is read once at startup; changing it takes effect on the
+        // next restart (matching how scan_interval_minutes is sampled).
+        let (rotate_tx, rotate_rx) = channel();
+        if cfg.wallpaper_rotation_minutes > 0 {
+            let period = Duration::from_secs(cfg.wallpaper_rotation_minutes * 60);
+            let ctx_rot = ctx.clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(period);
+                    // Receiver dropped => app is shutting down; stop the thread.
+                    if rotate_tx.send(()).is_err() {
+                        break;
+                    }
+                    ctx_rot.request_repaint();
+                }
+            });
+        }
 
         let (cfg_tx, cfg_rx) = channel();
         let last_written_config = config_watcher::make_last_written();
@@ -179,6 +208,8 @@ impl App {
             focus_target: None,
             binding_errors,
             ipc_rx,
+            rotate_rx,
+            last_wallpaper: None,
         }
     }
 
@@ -244,6 +275,10 @@ impl App {
     /// the upcoming Omakase Theme entry — both want exactly this behaviour.
     pub(crate) fn apply_theme(&mut self, ctx: &egui::Context, theme: crate::config::Theme) {
         self.cfg.theme = theme;
+        // New theme = new wallpaper pool; forget the old pick so the next
+        // rotation tick draws freely instead of trying to avoid a path that
+        // isn't in this theme's pool.
+        self.last_wallpaper = None;
         self.apply_reloaded(ctx);
         if let Err(e) = self.save_config() {
             tracing::warn!("save after set-theme: {e}");
@@ -268,6 +303,22 @@ impl App {
                     self.apply_theme(ctx, theme);
                 }
             }
+        }
+    }
+
+    /// Apply any pending wallpaper-rotation ticks. Coalesces a backlog (e.g.
+    /// after the machine wakes from sleep) into a single re-randomize.
+    fn poll_rotate(&mut self) {
+        let mut fired = false;
+        while self.rotate_rx.try_recv().is_ok() {
+            fired = true;
+        }
+        if !fired {
+            return;
+        }
+        match theme_orchestrator::pick_wallpaper(self.cfg.theme, self.last_wallpaper.as_deref()) {
+            Ok(path) => self.last_wallpaper = Some(path),
+            Err(e) => tracing::warn!("wallpaper rotation: {e}"),
         }
     }
 
@@ -451,6 +502,7 @@ impl eframe::App for App {
         self.poll_hotkey(ui.ctx());
         self.poll_cfg(ui.ctx());
         self.poll_ipc(ui.ctx());
+        self.poll_rotate();
 
         self.render_settings_viewport(ui.ctx());
 
