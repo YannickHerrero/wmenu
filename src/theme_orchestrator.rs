@@ -22,6 +22,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
@@ -358,21 +359,80 @@ fn render_wezterm_colors(theme: Theme, p: &Palette) -> String {
     )
 }
 
-/// Switch the desktop wallpaper to the matching `<theme>.png` under
-/// `%APPDATA%\wmenu\wallpapers\`. If the file isn't there, return an
-/// error so the report surfaces the miss; the other legs still apply.
+/// Theme-switch wallpaper leg: pick a fresh random image from the new
+/// theme's pool. There's no prior pick to avoid here, so any entry is fair.
 fn apply_wallpaper(theme: Theme) -> Result<()> {
-    let base = directories::BaseDirs::new().ok_or_else(|| anyhow!("BaseDirs unavailable"))?;
-    let name = format!("{theme:?}").to_lowercase();
-    let path = base
-        .config_dir()
-        .join("wmenu")
-        .join("wallpapers")
-        .join(format!("{name}.png"));
-    if !path.exists() {
-        return Err(anyhow!("no wallpaper at {}", path.display()));
+    pick_wallpaper(theme, None).map(|_| ())
+}
+
+/// Pick a random `<theme>-*.png` from `%APPDATA%\wmenu\wallpapers\`, set it
+/// as the desktop wallpaper, and return the chosen path. When `avoid` is
+/// supplied and the pool holds more than one image, the result is
+/// guaranteed to differ from it — so the rotation timer never shows the
+/// same wallpaper twice in a row. An empty pool or a Win32 failure surfaces
+/// as an error; the other theme legs still apply.
+pub fn pick_wallpaper(theme: Theme, avoid: Option<&Path>) -> Result<PathBuf> {
+    let dir = wallpapers_dir()?;
+    let mut pool = theme_pool(&dir, theme)?;
+    if pool.is_empty() {
+        return Err(anyhow!("no wallpaper for {theme:?} in {}", dir.display()));
     }
-    set_desktop_wallpaper(&path)
+    pool.sort();
+    let avoid_idx = avoid.and_then(|a| pool.iter().position(|p| p == a));
+    let chosen = pool.swap_remove(random_index(pool.len(), avoid_idx));
+    set_desktop_wallpaper(&chosen)?;
+    Ok(chosen)
+}
+
+fn wallpapers_dir() -> Result<PathBuf> {
+    let base = directories::BaseDirs::new().ok_or_else(|| anyhow!("BaseDirs unavailable"))?;
+    Ok(base.config_dir().join("wmenu").join("wallpapers"))
+}
+
+/// Every `<theme>-*.png` in `dir`. The trailing `-` in the prefix keeps the
+/// match anchored to the rotation naming and rules out a stray `<theme>.png`
+/// orphan (left behind by older syncs) leaking into the pool.
+fn theme_pool(dir: &Path, theme: Theme) -> Result<Vec<PathBuf>> {
+    let prefix = format!("{}-", format!("{theme:?}").to_lowercase());
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        // A missing dir is just an empty pool; the caller turns that into the
+        // "no wallpaper for <theme>" error with the full path attached.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e).with_context(|| format!("read {}", dir.display())),
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
+        let named = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.to_ascii_lowercase().starts_with(&prefix));
+        if is_png && named {
+            out.push(path);
+        }
+    }
+    Ok(out)
+}
+
+/// A process-reseeded pseudo-random index in `0..len`. When `avoid` is
+/// `Some(i)` and `len > 1`, the result is drawn from `0..len` excluding that
+/// index. `RandomState` reseeds from OS entropy on construction, giving
+/// fresh randomness without a `rand` dependency — selection quality is
+/// irrelevant here, only that consecutive picks can differ.
+fn random_index(len: usize, avoid: Option<usize>) -> usize {
+    use std::hash::{BuildHasher, Hasher};
+    let r = std::collections::hash_map::RandomState::new()
+        .build_hasher()
+        .finish() as usize;
+    match avoid {
+        Some(a) if len > 1 && a < len => {
+            let pick = r % (len - 1);
+            if pick >= a { pick + 1 } else { pick }
+        }
+        _ => r % len,
+    }
 }
 
 #[cfg(windows)]
