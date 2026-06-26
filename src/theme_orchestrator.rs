@@ -85,15 +85,23 @@ impl ApplyReport {
 ///
 /// `palette` is passed in so the orchestrator does not need to re-derive
 /// the hex values — the caller already has them.
-pub fn apply(theme: Theme, palette: &Palette) -> ApplyReport {
+pub fn apply(theme: Theme, palette: &Palette, terminal_monochrome: bool) -> ApplyReport {
     ApplyReport {
         wbar: apply_wbar(theme),
         explorer: apply_explorer(theme),
         glazewm: apply_glazewm(palette),
         windows: apply_windows(theme, palette),
-        wezterm: apply_wezterm(theme, palette),
+        wezterm: apply_wezterm(theme, palette, terminal_monochrome),
         wallpaper: apply_wallpaper(theme),
     }
+}
+
+pub fn apply_terminal_colors(
+    theme: Theme,
+    palette: &Palette,
+    terminal_monochrome: bool,
+) -> Result<()> {
+    apply_wezterm(theme, palette, terminal_monochrome)
 }
 
 fn apply_wbar(theme: Theme) -> Result<()> {
@@ -127,8 +135,8 @@ fn apply_explorer(theme: Theme) -> Result<()> {
         .join("com.ilios.explorer")
         .join("config.json");
 
-    let text = std::fs::read_to_string(&path)
-        .with_context(|| format!("read {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let mut json: serde_json::Value =
         serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
 
@@ -210,7 +218,9 @@ fn reload_glazewm() -> Result<()> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    let status = cmd.status().context("spawn `glazewm command wm-reload-config`")?;
+    let status = cmd
+        .status()
+        .context("spawn `glazewm command wm-reload-config`")?;
     if !status.success() {
         return Err(anyhow!("glazewm reload exited with {status}"));
     }
@@ -247,7 +257,8 @@ fn apply_windows(theme: Theme, palette: &Palette) -> Result<()> {
     let (dwm, _) = hkcu
         .create_subkey(r"Software\Microsoft\Windows\DWM")
         .context("open DWM key")?;
-    dwm.set_value("AccentColor", &abgr).context("write AccentColor")?;
+    dwm.set_value("AccentColor", &abgr)
+        .context("write AccentColor")?;
     dwm.set_value("ColorizationColor", &abgr)
         .context("write ColorizationColor")?;
 
@@ -268,7 +279,7 @@ fn apply_windows(_theme: Theme, _palette: &Palette) -> Result<()> {
 fn broadcast_immersive_color_set() {
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+        SMTO_ABORTIFHUNG, SendMessageTimeoutW, WM_SETTINGCHANGE,
     };
 
     // null-terminated UTF-16; keep alive until SendMessageTimeoutW returns.
@@ -293,15 +304,15 @@ fn broadcast_immersive_color_set() {
 /// `wezterm.add_to_config_reload_watch_list` + `pcall(dofile, …)`, so
 /// WezTerm hot-reloads as soon as we write the file — no IPC, no
 /// spawn.
-fn apply_wezterm(theme: Theme, palette: &Palette) -> Result<()> {
+fn apply_wezterm(theme: Theme, palette: &Palette, terminal_monochrome: bool) -> Result<()> {
     let base = directories::BaseDirs::new().ok_or_else(|| anyhow!("BaseDirs unavailable"))?;
     let path = base.home_dir().join(".wezterm-colors.lua");
-    let body = render_wezterm_colors(theme, palette);
+    let body = render_wezterm_colors(theme, palette, terminal_monochrome);
     std::fs::write(&path, body).with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }
 
-fn render_wezterm_colors(theme: Theme, p: &Palette) -> String {
+fn render_wezterm_colors(theme: Theme, p: &Palette, terminal_monochrome: bool) -> String {
     // Light themes treat "black" (ANSI 0) as a dark fg-ish colour and
     // "white" (ANSI 7) as a light-ish gray. Ink inverts: bg is dark so
     // ANSI 0 should also be dark; ANSI 7 = light fg.
@@ -318,23 +329,29 @@ fn render_wezterm_colors(theme: Theme, p: &Palette) -> String {
     let cur_fg = color_to_hex(p.paper);
     let sel = color_to_hex(p.muted);
 
-    let a0 = color_to_hex(ansi_0);
-    let a1 = color_to_hex(p.error);
-    let a2 = color_to_hex(p.success);
-    let a3 = color_to_hex(p.warning);
-    let a4 = color_to_hex(p.accent);
-    let a5 = color_to_hex(p.accent); // no magenta in palette; mirror accent
-    let a6 = color_to_hex(p.ink_soft); // no cyan; mirror ink_soft
-    let a7 = color_to_hex(ansi_7);
+    let (ansi, brights) = if terminal_monochrome {
+        monochrome_terminal_palette(theme, p, ansi_0, ansi_7, bright_0, bright_7)
+    } else {
+        classic_terminal_palette(p, ansi_0, ansi_7, bright_0, bright_7)
+    };
 
-    let b0 = color_to_hex(bright_0);
-    let b1 = color_to_hex(p.error);
-    let b2 = color_to_hex(p.success);
-    let b3 = color_to_hex(p.warning);
-    let b4 = color_to_hex(p.accent);
-    let b5 = color_to_hex(p.accent);
-    let b6 = color_to_hex(p.ink_soft);
-    let b7 = color_to_hex(bright_7);
+    let a0 = color_to_hex(ansi[0]);
+    let a1 = color_to_hex(ansi[1]);
+    let a2 = color_to_hex(ansi[2]);
+    let a3 = color_to_hex(ansi[3]);
+    let a4 = color_to_hex(ansi[4]);
+    let a5 = color_to_hex(ansi[5]);
+    let a6 = color_to_hex(ansi[6]);
+    let a7 = color_to_hex(ansi[7]);
+
+    let b0 = color_to_hex(brights[0]);
+    let b1 = color_to_hex(brights[1]);
+    let b2 = color_to_hex(brights[2]);
+    let b3 = color_to_hex(brights[3]);
+    let b4 = color_to_hex(brights[4]);
+    let b5 = color_to_hex(brights[5]);
+    let b6 = color_to_hex(brights[6]);
+    let b7 = color_to_hex(brights[7]);
 
     format!(
         "-- Generated by wmenu theme orchestrator. Edits will be overwritten\n\
@@ -356,6 +373,90 @@ fn render_wezterm_colors(theme: Theme, p: &Palette) -> String {
          \x20\x20\x20\x20\"{b4}\", \"{b5}\", \"{b6}\", \"{b7}\",\n\
          \x20\x20}},\n\
          }}\n"
+    )
+}
+
+fn classic_terminal_palette(
+    p: &Palette,
+    ansi_0: Color32,
+    ansi_7: Color32,
+    bright_0: Color32,
+    bright_7: Color32,
+) -> ([Color32; 8], [Color32; 8]) {
+    (
+        [
+            ansi_0, p.error, p.success, p.warning, p.accent, p.accent, p.ink_soft, ansi_7,
+        ],
+        [
+            bright_0, p.error, p.success, p.warning, p.accent, p.accent, p.ink_soft, bright_7,
+        ],
+    )
+}
+
+fn monochrome_terminal_palette(
+    theme: Theme,
+    p: &Palette,
+    ansi_0: Color32,
+    ansi_7: Color32,
+    bright_0: Color32,
+    bright_7: Color32,
+) -> ([Color32; 8], [Color32; 8]) {
+    if matches!(theme, Theme::Ink) {
+        return (
+            [
+                ansi_0,
+                blend(p.accent, p.paper, 0.55),
+                blend(p.accent, p.paper, 0.45),
+                blend(p.accent, p.paper, 0.35),
+                blend(p.accent, p.paper, 0.25),
+                blend(p.accent, p.ink_faint, 0.35),
+                p.ink_soft,
+                ansi_7,
+            ],
+            [
+                bright_0,
+                blend(p.accent, p.paper, 0.25),
+                blend(p.accent, p.paper, 0.15),
+                p.accent,
+                blend(p.accent, p.ink, 0.10),
+                blend(p.accent, p.ink_faint, 0.20),
+                p.ink_soft,
+                bright_7,
+            ],
+        );
+    }
+
+    (
+        [
+            ansi_0,
+            blend(p.accent, p.ink, 0.30),
+            blend(p.accent, p.ink_soft, 0.35),
+            blend(p.accent, p.paper, 0.35),
+            p.accent,
+            blend(p.accent, p.ink, 0.12),
+            blend(p.accent, p.muted, 0.45),
+            ansi_7,
+        ],
+        [
+            bright_0,
+            blend(p.accent, p.ink, 0.18),
+            blend(p.accent, p.ink_soft, 0.20),
+            blend(p.accent, p.paper, 0.20),
+            blend(p.accent, p.ink, 0.06),
+            p.accent,
+            blend(p.accent, p.muted, 0.25),
+            bright_7,
+        ],
+    )
+}
+
+fn blend(a: Color32, b: Color32, b_weight: f32) -> Color32 {
+    let w = b_weight.clamp(0.0, 1.0);
+    let inv = 1.0 - w;
+    Color32::from_rgb(
+        ((a.r() as f32 * inv) + (b.r() as f32 * w)).round() as u8,
+        ((a.g() as f32 * inv) + (b.g() as f32 * w)).round() as u8,
+        ((a.b() as f32 * inv) + (b.b() as f32 * w)).round() as u8,
     )
 }
 
@@ -404,7 +505,9 @@ fn theme_pool(dir: &Path, theme: Theme) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        let is_png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
+        let is_png = path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("png"));
         let named = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -442,7 +545,11 @@ fn set_desktop_wallpaper(path: &std::path::Path) -> Result<()> {
         SPI_SETDESKWALLPAPER, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SystemParametersInfoW,
     };
 
-    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
     unsafe {
         SystemParametersInfoW(
             SPI_SETDESKWALLPAPER,

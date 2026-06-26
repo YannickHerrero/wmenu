@@ -2,6 +2,7 @@ use eframe::egui;
 
 use crate::app::App;
 use crate::config::Theme;
+use crate::theme_orchestrator;
 use crate::ui::settings::components as c;
 use crate::ui::settings::{Page, SearchEntry};
 use crate::ui::theme;
@@ -14,8 +15,33 @@ pub const ENTRIES: &[SearchEntry] = &[
         page: Page::General,
         section: "Appearance",
         label: "Theme",
-        keywords: &["theme", "appearance", "color", "colour", "dark", "light", "paper", "ink"],
+        keywords: &[
+            "theme",
+            "appearance",
+            "color",
+            "colour",
+            "dark",
+            "light",
+            "paper",
+            "ink",
+        ],
         focus_id: Some("general_theme"),
+    },
+    SearchEntry {
+        page: Page::General,
+        section: "Appearance",
+        label: "Monochromatic terminal colors",
+        keywords: &[
+            "terminal",
+            "monochrome",
+            "monochromatic",
+            "ansi",
+            "wezterm",
+            "windows terminal",
+            "colors",
+            "colours",
+        ],
+        focus_id: Some("general_terminal_monochrome"),
     },
     SearchEntry {
         page: Page::General,
@@ -51,7 +77,12 @@ pub const ENTRIES: &[SearchEntry] = &[
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let theme = app.cfg.theme;
     c::page_frame(ui, theme, |ui| {
-        c::page_header(ui, theme, "General", Some("Appearance and startup behaviour."));
+        c::page_header(
+            ui,
+            theme,
+            "General",
+            Some("Appearance and startup behaviour."),
+        );
 
         c::section(ui, theme, "Appearance", |ui| {
             c::field_row(ui, theme, "Theme", |ui| {
@@ -73,15 +104,37 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 c::consume_focus_target(&resp, &mut app.focus_target, "general_theme");
                 if app.cfg.theme != prev {
                     theme::apply(ui.ctx(), app.cfg.theme);
+                    let palette = theme::palette(app.cfg.theme);
+                    if let Err(e) = theme_orchestrator::apply_terminal_colors(
+                        app.cfg.theme,
+                        &palette,
+                        app.cfg.terminal_monochrome,
+                    ) {
+                        tracing::warn!("apply terminal colors after theme change: {e}");
+                    }
+                }
+            });
+            c::field_row(ui, theme, "Monochromatic terminal colors", |ui| {
+                let resp = ui.checkbox(&mut app.cfg.terminal_monochrome, "");
+                c::consume_focus_target(
+                    &resp,
+                    &mut app.focus_target,
+                    "general_terminal_monochrome",
+                );
+                if resp.changed() {
+                    let palette = theme::palette(app.cfg.theme);
+                    if let Err(e) = theme_orchestrator::apply_terminal_colors(
+                        app.cfg.theme,
+                        &palette,
+                        app.cfg.terminal_monochrome,
+                    ) {
+                        tracing::warn!("apply terminal colors: {e}");
+                    }
                 }
             });
             c::field_row(ui, theme, "Borderless settings window", |ui| {
                 let resp = ui.checkbox(&mut app.cfg.settings_borderless, "");
-                c::consume_focus_target(
-                    &resp,
-                    &mut app.focus_target,
-                    "general_borderless",
-                );
+                c::consume_focus_target(&resp, &mut app.focus_target, "general_borderless");
             });
         });
 
@@ -92,11 +145,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             });
             c::field_row(ui, theme, "Start minimized to tray", |ui| {
                 let resp = ui.checkbox(&mut app.cfg.daemon.start_minimized, "");
-                c::consume_focus_target(
-                    &resp,
-                    &mut app.focus_target,
-                    "general_start_minimized",
-                );
+                c::consume_focus_target(&resp, &mut app.focus_target, "general_start_minimized");
             });
         });
     });

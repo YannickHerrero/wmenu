@@ -10,8 +10,8 @@ use tray_icon::menu::MenuEvent;
 use crate::action;
 use crate::amphetamine::Amphetamine;
 use crate::autostart;
-use crate::config::{Config, watcher as config_watcher};
 use crate::config::watcher::LastWritten;
+use crate::config::{Config, watcher as config_watcher};
 use crate::hotkey::{BindingError, Manager as HotkeyMgr};
 use crate::index;
 use crate::index::SharedIndex;
@@ -280,6 +280,12 @@ impl App {
         // isn't in this theme's pool.
         self.last_wallpaper = None;
         self.apply_reloaded(ctx);
+        let palette = theme::palette(theme);
+        if let Err(e) =
+            theme_orchestrator::apply_terminal_colors(theme, &palette, self.cfg.terminal_monochrome)
+        {
+            tracing::warn!("apply terminal colors after set-theme: {e}");
+        }
         if let Err(e) = self.save_config() {
             tracing::warn!("save after set-theme: {e}");
         }
@@ -354,9 +360,7 @@ impl App {
         // stays, which keeps the window floatable / sizable in tiling WMs
         // like GlazeWM). Only fired when the desired state changes — finding
         // the HWND is a Win32 EnumWindows call.
-        if self.last_settings_chrome != Some(borderless)
-            && apply_settings_chrome(borderless)
-        {
+        if self.last_settings_chrome != Some(borderless) && apply_settings_chrome(borderless) {
             self.last_settings_chrome = Some(borderless);
         }
         if close_requested {
@@ -642,11 +646,12 @@ impl eframe::App for App {
                         // doesn't undo wmenu's own switch.
                         self.apply_theme(ui.ctx(), picked);
                         let palette = theme::palette(picked);
-                        let report = theme_orchestrator::apply(picked, &palette);
-                        tracing::info!(
-                            "theme orchestrator: {}",
-                            report.summarise()
+                        let report = theme_orchestrator::apply(
+                            picked,
+                            &palette,
+                            self.cfg.terminal_monochrome,
                         );
+                        tracing::info!("theme orchestrator: {}", report.summarise());
                         ui.ctx()
                             .send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         self.visible = false;

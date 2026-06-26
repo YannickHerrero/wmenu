@@ -145,6 +145,9 @@ pub struct Config {
     /// closes it; without a titlebar there's no draggable region (rely on the
     /// window manager, e.g. Win+drag on Windows).
     pub settings_borderless: bool,
+    /// When true, generated terminal ANSI palettes stay within the active
+    /// theme's hue instead of using semantic red / green / yellow slots.
+    pub terminal_monochrome: bool,
     /// Minutes between desktop-wallpaper re-randomizations. Each tick picks a
     /// fresh `<theme>-*.png` from the active theme's pool. `0` disables
     /// rotation (the wallpaper still changes once per theme switch).
@@ -160,6 +163,7 @@ impl Default for Config {
             launcher: LauncherCfg::default(),
             amphetamine_enabled: false,
             settings_borderless: false,
+            terminal_monochrome: true,
             wallpaper_rotation_minutes: 30,
             bindings: Vec::new(),
         }
