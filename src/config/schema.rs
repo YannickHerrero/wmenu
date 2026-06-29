@@ -163,7 +163,7 @@ impl Default for Config {
             launcher: LauncherCfg::default(),
             amphetamine_enabled: false,
             settings_borderless: false,
-            terminal_monochrome: true,
+            terminal_monochrome: false,
             wallpaper_rotation_minutes: 30,
             bindings: Vec::new(),
         }

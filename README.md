@@ -59,7 +59,7 @@ Picking a theme from the Omakase **Theme** submenu (`Alt+Super+Space → Theme �
 | wbar | TCP `127.0.0.1:17128` `set-theme <Name>\n` |
 | Explorer | overwrites the `theme` field in `%APPDATA%\com.ilios.explorer\config.json`; Explorer's backend file watcher picks it up and pushes the new CSS variables to the running window |
 | GlazeWM | rewrites the focused / unfocused border `color:` lines marked with `# wmenu-theme-focused` / `# wmenu-theme-unfocused` sentinel comments in `~/.glzr/glazewm/config.yaml`, then spawns `glazewm command wm-reload-config` |
-| WezTerm | writes a full `config.colors` table to `~/.wezterm-colors.lua`; WezTerm hot-reloads any file added to its `add_to_config_reload_watch_list`. By default, ANSI slots are monochromatic variants of the active theme; disable `terminal_monochrome` to restore semantic red / green / yellow slots. |
+| WezTerm | writes a full `config.colors` table to `~/.wezterm-colors.lua`; WezTerm hot-reloads any file added to its `add_to_config_reload_watch_list`. By default, ANSI slots use the theme's full terminal palette; enable `terminal_monochrome` to keep ANSI colors within the active theme's hue. |
 | Windows | `HKCU\…\Personalize\AppsUseLightTheme` / `SystemUsesLightTheme` (Ink → 0, others → 1) + `HKCU\…\DWM\AccentColor` / `ColorizationColor` (ABGR), then `SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, "ImmersiveColorSet")` so running apps repaint without log-out |
 | Wallpaper | `SystemParametersInfoW SPI_SETDESKWALLPAPER` on `%APPDATA%\wmenu\wallpapers\<theme>.png` |
 

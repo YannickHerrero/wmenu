@@ -42,6 +42,10 @@ const WBAR_IPC_PORT: u16 = 17128;
 const GLAZEWM_FOCUSED_SENTINEL: &str = "# wmenu-theme-focused";
 const GLAZEWM_UNFOCUSED_SENTINEL: &str = "# wmenu-theme-unfocused";
 
+const fn rgb(r: u8, g: u8, b: u8) -> Color32 {
+    Color32::from_rgb(r, g, b)
+}
+
 /// Win32 CreateProcess flag: don't allocate a console for the child. Used
 /// when spawning glazewm.exe, which is a console-subsystem binary and would
 /// otherwise flash a terminal window.
@@ -332,7 +336,7 @@ fn render_wezterm_colors(theme: Theme, p: &Palette, terminal_monochrome: bool) -
     let (ansi, brights) = if terminal_monochrome {
         monochrome_terminal_palette(theme, p, ansi_0, ansi_7, bright_0, bright_7)
     } else {
-        classic_terminal_palette(p, ansi_0, ansi_7, bright_0, bright_7)
+        terminal_palette(theme)
     };
 
     let a0 = color_to_hex(ansi[0]);
@@ -376,21 +380,119 @@ fn render_wezterm_colors(theme: Theme, p: &Palette, terminal_monochrome: bool) -
     )
 }
 
-fn classic_terminal_palette(
-    p: &Palette,
-    ansi_0: Color32,
-    ansi_7: Color32,
-    bright_0: Color32,
-    bright_7: Color32,
-) -> ([Color32; 8], [Color32; 8]) {
-    (
-        [
-            ansi_0, p.error, p.success, p.warning, p.accent, p.accent, p.ink_soft, ansi_7,
-        ],
-        [
-            bright_0, p.error, p.success, p.warning, p.accent, p.accent, p.ink_soft, bright_7,
-        ],
-    )
+fn terminal_palette(theme: Theme) -> ([Color32; 8], [Color32; 8]) {
+    match theme {
+        Theme::Paper => (
+            [
+                rgb(0x2B, 0x24, 0x1B),
+                rgb(0xB5, 0x59, 0x3A),
+                rgb(0x6E, 0x7B, 0x4F),
+                rgb(0xC0, 0x8A, 0x2E),
+                rgb(0x4A, 0x6B, 0x8A),
+                rgb(0x8A, 0x5A, 0x6E),
+                rgb(0x5A, 0x8A, 0x82),
+                rgb(0x6B, 0x5E, 0x4E),
+            ],
+            [
+                rgb(0xA4, 0x95, 0x80),
+                rgb(0xCF, 0x6E, 0x4E),
+                rgb(0x86, 0x97, 0x66),
+                rgb(0xD8, 0xA6, 0x48),
+                rgb(0x5F, 0x84, 0xA6),
+                rgb(0xA5, 0x71, 0x86),
+                rgb(0x72, 0xA6, 0x9D),
+                rgb(0x2B, 0x24, 0x1B),
+            ],
+        ),
+        Theme::Stone => (
+            [
+                rgb(0x2D, 0x33, 0x38),
+                rgb(0xA8, 0x5A, 0x52),
+                rgb(0x5E, 0x7B, 0x5E),
+                rgb(0x9E, 0x82, 0x44),
+                rgb(0x4A, 0x6B, 0x8A),
+                rgb(0x76, 0x60, 0x8A),
+                rgb(0x4E, 0x80, 0x88),
+                rgb(0x5F, 0x69, 0x72),
+            ],
+            [
+                rgb(0x9B, 0xA3, 0xAB),
+                rgb(0xC2, 0x75, 0x6B),
+                rgb(0x76, 0x96, 0x76),
+                rgb(0xB8, 0x9C, 0x5C),
+                rgb(0x62, 0x86, 0xA8),
+                rgb(0x91, 0x7B, 0xA6),
+                rgb(0x66, 0x9C, 0xA4),
+                rgb(0x2D, 0x33, 0x38),
+            ],
+        ),
+        Theme::Sage => (
+            [
+                rgb(0x2C, 0x35, 0x26),
+                rgb(0x9E, 0x54, 0x40),
+                rgb(0x3F, 0x5C, 0x32),
+                rgb(0x9A, 0x80, 0x30),
+                rgb(0x4F, 0x6B, 0x82),
+                rgb(0x78, 0x58, 0x68),
+                rgb(0x4E, 0x82, 0x7A),
+                rgb(0x5E, 0x69, 0x54),
+            ],
+            [
+                rgb(0x97, 0xA2, 0x87),
+                rgb(0xBC, 0x6E, 0x58),
+                rgb(0x5C, 0x7A, 0x4A),
+                rgb(0xB4, 0x9A, 0x48),
+                rgb(0x67, 0x84, 0x9C),
+                rgb(0x93, 0x73, 0x82),
+                rgb(0x66, 0x9C, 0x92),
+                rgb(0x2C, 0x35, 0x26),
+            ],
+        ),
+        Theme::Clay => (
+            [
+                rgb(0x3A, 0x28, 0x20),
+                rgb(0x9E, 0x45, 0x21),
+                rgb(0x6E, 0x7B, 0x4A),
+                rgb(0xB0, 0x70, 0x28),
+                rgb(0x5A, 0x6E, 0x84),
+                rgb(0x8A, 0x54, 0x60),
+                rgb(0x5A, 0x84, 0x78),
+                rgb(0x6E, 0x55, 0x48),
+            ],
+            [
+                rgb(0xA8, 0x90, 0x7F),
+                rgb(0xC2, 0x60, 0x3A),
+                rgb(0x86, 0x95, 0x62),
+                rgb(0xCC, 0x8C, 0x40),
+                rgb(0x71, 0x88, 0xA0),
+                rgb(0xA5, 0x6F, 0x7B),
+                rgb(0x73, 0xA0, 0x94),
+                rgb(0x3A, 0x28, 0x20),
+            ],
+        ),
+        Theme::Ink => (
+            [
+                rgb(0x1A, 0x1A, 0x1A),
+                rgb(0xC9, 0x7A, 0x5A),
+                rgb(0x8A, 0xA0, 0x6E),
+                rgb(0xD4, 0xB3, 0x6A),
+                rgb(0x7F, 0xA0, 0xC0),
+                rgb(0xB5, 0x89, 0xA0),
+                rgb(0x7F, 0xB0, 0xA8),
+                rgb(0xC9, 0xC4, 0xB8),
+            ],
+            [
+                rgb(0x5A, 0x57, 0x52),
+                rgb(0xDD, 0x91, 0x76),
+                rgb(0xA2, 0xB7, 0x88),
+                rgb(0xE4, 0xC8, 0x86),
+                rgb(0x9B, 0xB8, 0xD2),
+                rgb(0xC9, 0xA2, 0xB6),
+                rgb(0x9B, 0xC6, 0xBF),
+                rgb(0xF5, 0xEF, 0xE0),
+            ],
+        ),
+    }
 }
 
 fn monochrome_terminal_palette(
